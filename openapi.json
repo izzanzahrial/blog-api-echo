@@ -298,7 +298,7 @@
                     "createdAt": {
                         "type": "string"
                     },
-                    "body": {
+                    "content": {
                         "type": "string"
                     }
                 }
@@ -312,7 +312,7 @@
                     "createdAt": {
                         "type": "string"
                     },
-                    "body": {
+                    "content": {
                         "type": "string"
                     }
                 }
