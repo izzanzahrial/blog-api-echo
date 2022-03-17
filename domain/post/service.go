@@ -3,7 +3,6 @@ package post
 import (
 	"context"
 	"database/sql"
-	"gopls-workspace/entity"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/entity"
@@ -23,13 +22,13 @@ type postService struct {
 	Validate       *validator.Validate
 }
 
-// func NewPostService(pr PostRepository, db *sql.DB, val *validator.Validate) PostService{
-// 	return &postService{
-// 		PostRepository: pr,
-// 		DB: db,
-// 		Validate: val,
-// 	}
-// }
+func NewPostService(pr PostRepository, db *sql.DB, val *validator.Validate) PostService {
+	return &postService{
+		PostRepository: pr,
+		DB:             db,
+		Validate:       val,
+	}
+}
 
 func (ps *postService) Create(ctx context.Context, post entity.Post) entity.Post {
 	err := ps.Validate.Struct(post)
@@ -42,7 +41,11 @@ func (ps *postService) Create(ctx context.Context, post entity.Post) entity.Post
 
 	}
 
-	post = ps.PostRepository.Create(ctx, tx, post)
+	post, err = ps.PostRepository.Create(ctx, tx, post)
+	if err != nil {
+
+	}
+
 	return post
 }
 
@@ -57,14 +60,19 @@ func (ps *postService) Update(ctx context.Context, post entity.Post) entity.Post
 
 	}
 
-	newPost, err := ps.PostRepository.FindByID(post.ID)
+	newPost, err := ps.PostRepository.FindByID(ctx, tx, post.ID)
 	if err != nil {
 
 	}
 
-	newPost.title = post.title
-	newPost.content = post.content
-	post = ps.PostRepository.Update(ctx, tx, post)
+	newPost.Title = post.Title
+	newPost.Content = post.Content
+
+	post, err = ps.PostRepository.Update(ctx, tx, newPost)
+	if err != nil {
+
+	}
+
 	return post
 }
 
@@ -79,7 +87,7 @@ func (ps *postService) Delete(ctx context.Context, postID uint64) {
 
 	}
 
-	ps.PostRepository.Delete(ctx, tx, post.ID)
+	ps.PostRepository.Delete(ctx, tx, post)
 }
 func (ps *postService) FindByID(ctx context.Context, postID uint64) entity.Post {
 	tx, err := ps.DB.Begin()
@@ -100,6 +108,10 @@ func (ps *postService) FindAll(ctx context.Context) []entity.Post {
 
 	}
 
-	posts := ps.PostRepository.FindAll(ctx)
+	posts, err := ps.PostRepository.FindAll(ctx, tx)
+	if err != nil {
+
+	}
+
 	return posts
 }
