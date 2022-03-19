@@ -37,7 +37,7 @@ func (ph *postHandler) Create(c echo.Context) webResponse {
 	post.Title = c.FormValue("title")
 	post.Content = c.FormValue("content")
 
-	postResponse := ph.PostService.Create(c.Request().Context(), *post)
+	postResponse, _ := ph.PostService.Create(c.Request().Context(), *post)
 	webResponse := webResponse{
 		code:   http.StatusAccepted,
 		status: "",
@@ -58,7 +58,7 @@ func (ph *postHandler) Update(c echo.Context) webResponse {
 	post.Title = c.FormValue("title")
 	post.Content = c.FormValue("content")
 
-	postResponse := ph.PostService.Update(c.Request().Context(), *post)
+	postResponse, _ := ph.PostService.Update(c.Request().Context(), *post)
 	webResponse := webResponse{
 		code:   http.StatusAccepted,
 		status: "",
@@ -74,6 +74,7 @@ func (ph *postHandler) Delete(c echo.Context) webResponse {
 	if err != nil {
 
 	}
+
 	ph.PostService.Delete(c.Request().Context(), newId)
 	webResponse := webResponse{
 		code:   http.StatusOK,
@@ -90,7 +91,7 @@ func (ph *postHandler) FindByID(c echo.Context) webResponse {
 
 	}
 
-	postResponse := ph.PostService.FindByID(c.Request().Context(), newId)
+	postResponse, _ := ph.PostService.FindByID(c.Request().Context(), newId)
 	webResponse := webResponse{
 		code:   http.StatusFound,
 		status: "",
@@ -101,7 +102,7 @@ func (ph *postHandler) FindByID(c echo.Context) webResponse {
 }
 
 func (ph *postHandler) FindAll(c echo.Context) webResponse {
-	postResponse := ph.PostService.FindAll(c.Request().Context())
+	postResponse, _ := ph.PostService.FindAll(c.Request().Context())
 	webResponse := webResponse{
 		code:   http.StatusOK,
 		status: "",
