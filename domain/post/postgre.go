@@ -61,8 +61,7 @@ func (p *postgreRepository) FindByID(ctx context.Context, tx *sql.Tx, ID uint64)
 
 	post := entity.Post{}
 	if rows.Next() {
-		err := rows.Scan(&post.ID, &post.Title, &post.Content)
-		if err != nil {
+		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
 			return post, ErrFailedToAssertPost
 		}
 		return post, nil
@@ -82,8 +81,7 @@ func (p *postgreRepository) FindAll(ctx context.Context, tx *sql.Tx) ([]entity.P
 	var posts []entity.Post
 	for rows.Next() {
 		post := entity.Post{}
-		err := rows.Scan(&post.ID, &post.Title, &post.Content)
-		if err != nil {
+		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
 			return nil, ErrFailedToAssertPost
 		}
 		posts = append(posts, post)
