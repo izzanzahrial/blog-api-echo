@@ -18,14 +18,22 @@ var (
 type UserService interface {
 	Create(ctx context.Context, user entity.User) (entity.User, error)
 	Update(ctx context.Context, user entity.User) (entity.User, error)
-	Delete(ctx context.Context, id uint64) error
-	Find(ctx context.Context, id uint64, password string) (entity.User, error)
+	Delete(ctx context.Context, id uint64, pass string) error
+	Find(ctx context.Context, id uint64, pass string) (entity.User, error)
 }
 
 type userService struct {
 	UserRepository UserRepository
 	DB             *sql.DB
 	Validate       *validator.Validate
+}
+
+func NewUserService(ur UserRepository, db *sql.DB, val *validator.Validate) UserService {
+	return &userService{
+		UserRepository: ur,
+		DB:             db,
+		Validate:       val,
+	}
 }
 
 func (us *userService) Create(ctx context.Context, user entity.User) (entity.User, error) {
@@ -53,11 +61,76 @@ func (us *userService) Create(ctx context.Context, user entity.User) (entity.Use
 }
 
 func (us *userService) Update(ctx context.Context, user entity.User) (entity.User, error) {
+	if err := us.Validate.Struct(user); err != nil {
+		return user, ErrUserIsntValidate
+	}
+
+	tx, err := us.DB.Begin()
+	if err != nil {
+		return user, ErrFailedToBeginTransaction
+	}
+	defer tx.Rollback()
+
+	oldUser, err := us.UserRepository.Find(ctx, tx, user.ID, user.Password)
+	if err != nil {
+		return user, err
+	}
+
+	oldUser.Name = user.Name
+	oldUser.Password = user.Password
+
+	user, err = us.UserRepository.Update(ctx, tx, oldUser)
+	if err != nil {
+		return user, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return user, ErrFailedToCommitTransaction
+	}
+
+	return user, nil
+
 }
 
-func (us *userService) Delete(ctx context.Context, id uint64) error {
+func (us *userService) Delete(ctx context.Context, id uint64, pass string) error {
+	tx, err := us.DB.Begin()
+	if err != nil {
+		return ErrFailedToBeginTransaction
+	}
+	defer tx.Rollback()
+
+	user, err := us.UserRepository.Find(ctx, tx, id, pass)
+	if err != nil {
+		return err
+	}
+
+	if err := us.UserRepository.Delete(ctx, tx, user); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ErrFailedToCommitTransaction
+	}
+
+	return nil
 
 }
 
-func (us *userService) Find(ctx context.Context, id uint64, password string) (entity.User, error) {
+func (us *userService) Find(ctx context.Context, id uint64, pass string) (entity.User, error) {
+	tx, err := us.DB.Begin()
+	if err != nil {
+		return entity.User{}, ErrFailedToBeginTransaction
+	}
+	defer tx.Rollback()
+
+	user, err := us.UserRepository.Find(ctx, tx, id, pass)
+	if err != nil {
+		return user, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return user, ErrFailedToCommitTransaction
+	}
+
+	return user, nil
 }

@@ -20,5 +20,5 @@ type UserRepository interface {
 	Create(ctx context.Context, tx *sql.Tx, user entity.User) (entity.User, error)
 	Update(ctx context.Context, tx *sql.Tx, user entity.User) (entity.User, error)
 	Delete(ctx context.Context, tx *sql.Tx, user entity.User) error
-	Find(ctx context.Context, tx *sql.Tx, ID uint64, password string) (entity.User, error)
+	Find(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (entity.User, error)
 }

@@ -105,11 +105,13 @@ func (ps *postService) Delete(ctx context.Context, postID uint64) error {
 		return err
 	}
 
+	if err := ps.PostRepository.Delete(ctx, tx, post); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return ErrFailedToCommitTransaction
 	}
-
-	ps.PostRepository.Delete(ctx, tx, post)
 
 	return nil
 }
