@@ -17,9 +17,10 @@ var (
 
 type UserService interface {
 	Create(ctx context.Context, user entity.User) (entity.User, error)
-	Update(ctx context.Context, user entity.User) (entity.User, error)
+	UpdateUser(ctx context.Context, user entity.User) (entity.User, error)
+	UpdatePassword(ctx context.Context, user entity.User) (entity.User, error)
 	Delete(ctx context.Context, id uint64, pass string) error
-	Find(ctx context.Context, id uint64, pass string) (entity.User, error)
+	Login(ctx context.Context, id uint64, pass string) (entity.User, error)
 }
 
 type userService struct {
@@ -60,7 +61,38 @@ func (us *userService) Create(ctx context.Context, user entity.User) (entity.Use
 	return user, nil
 }
 
-func (us *userService) Update(ctx context.Context, user entity.User) (entity.User, error) {
+func (us *userService) UpdateUser(ctx context.Context, user entity.User) (entity.User, error) {
+	if err := us.Validate.Struct(user); err != nil {
+		return user, ErrUserIsntValidate
+	}
+
+	tx, err := us.DB.Begin()
+	if err != nil {
+		return user, ErrFailedToBeginTransaction
+	}
+	defer tx.Rollback()
+
+	oldUser, err := us.UserRepository.FindByID(ctx, tx, user.ID)
+	if err != nil {
+		return user, err
+	}
+
+	oldUser.Name = user.Name
+
+	user, err = us.UserRepository.UpdateUser(ctx, tx, oldUser)
+	if err != nil {
+		return user, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return user, ErrFailedToCommitTransaction
+	}
+
+	return user, nil
+
+}
+
+func (us *userService) UpdatePassword(ctx context.Context, user entity.User) (entity.User, error) {
 	if err := us.Validate.Struct(user); err != nil {
 		return user, ErrUserIsntValidate
 	}
@@ -76,10 +108,9 @@ func (us *userService) Update(ctx context.Context, user entity.User) (entity.Use
 		return user, err
 	}
 
-	oldUser.Name = user.Name
 	oldUser.Password = user.Password
 
-	user, err = us.UserRepository.Update(ctx, tx, oldUser)
+	user, err = us.UserRepository.UpdatePassword(ctx, tx, oldUser)
 	if err != nil {
 		return user, err
 	}
@@ -89,7 +120,6 @@ func (us *userService) Update(ctx context.Context, user entity.User) (entity.Use
 	}
 
 	return user, nil
-
 }
 
 func (us *userService) Delete(ctx context.Context, id uint64, pass string) error {
@@ -113,10 +143,9 @@ func (us *userService) Delete(ctx context.Context, id uint64, pass string) error
 	}
 
 	return nil
-
 }
 
-func (us *userService) Find(ctx context.Context, id uint64, pass string) (entity.User, error) {
+func (us *userService) Login(ctx context.Context, id uint64, pass string) (entity.User, error) {
 	tx, err := us.DB.Begin()
 	if err != nil {
 		return entity.User{}, ErrFailedToBeginTransaction

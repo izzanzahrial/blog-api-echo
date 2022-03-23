@@ -1,9 +1,9 @@
 package user
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/izzanzahrial/blog-api-echo/entity"
 	"github.com/labstack/echo/v4"
@@ -15,9 +15,10 @@ var (
 
 type UserHandler interface {
 	Create(c echo.Context) error
-	Update(c echo.Context) error
+	UpdateUser(c echo.Context) error
+	UpdatePassword(c echo.Context) error
 	Delete(c echo.Context) error
-	Find(c echo.Context) error
+	Login(c echo.Context) error
 }
 
 type userHandler struct {
@@ -39,10 +40,17 @@ type webResponse struct {
 func (us *userHandler) Create(c echo.Context) error {
 	user := entity.User{}
 
-	defer c.Request().Body.Close()
+	// Should i use body request or form value
+	// defer c.Request().Body.Close()
 
-	err := json.NewDecoder(c.Request().Body).Decode(&user)
-	if err != nil {
+	// err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest)
+	// }
+
+	user.Name = c.FormValue("name")
+	user.Password = c.FormValue("password")
+	if password2 := c.FormValue("password2"); password2 != user.Password {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
 
@@ -60,17 +68,48 @@ func (us *userHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, webResponse)
 }
 
-func (us *userHandler) Update(c echo.Context) error {
+func (us *userHandler) UpdateUser(c echo.Context) error {
 	user := entity.User{}
 
-	defer c.Request().Body.Close()
+	// defer c.Request().Body.Close()
 
-	err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest)
+	// }
+
+	user.Name = c.FormValue("name")
+
+	userResponse, err := us.UserService.UpdateUser(c.Request().Context(), user)
 	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	webResponse := webResponse{
+		code:   http.StatusAccepted,
+		status: "",
+		data:   userResponse,
+	}
+
+	return c.JSON(http.StatusAccepted, webResponse)
+}
+
+func (us *userHandler) UpdatePassword(c echo.Context) error {
+	user := entity.User{}
+
+	// defer c.Request().Body.Close()
+
+	// err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest)
+	// }
+
+	user.Password = c.FormValue("password")
+	if password2 := c.FormValue("password2"); password2 != user.Password {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
 
-	userResponse, err := us.UserService.Update(c.Request().Context(), user)
+	userResponse, err := us.UserService.UpdatePassword(c.Request().Context(), user)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
@@ -87,12 +126,20 @@ func (us *userHandler) Update(c echo.Context) error {
 func (us *userHandler) Delete(c echo.Context) error {
 	user := entity.User{}
 
-	defer c.Request().Body.Close()
+	// defer c.Request().Body.Close()
 
-	err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// err := json.NewDecoder(c.Request().Body).Decode(&user)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest)
+	// }
+
+	id := c.FormValue("id")
+	id2, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
+	user.ID = id2
+	user.Password = c.FormValue("password")
 
 	us.UserService.Delete(c.Request().Context(), user.ID, user.Password)
 	webResponse := webResponse{
@@ -103,18 +150,26 @@ func (us *userHandler) Delete(c echo.Context) error {
 	return c.JSON(http.StatusOK, webResponse)
 }
 
-func (us *userHandler) Find(c echo.Context) error {
+func (us *userHandler) Login(c echo.Context) error {
 	user := entity.User{}
 
-	defer c.Request().Body.Close()
+	// defer c.Request().Body.Close()
 
-	decoder := json.NewDecoder(c.Request().Body)
-	err := decoder.Decode(&user)
+	// decoder := json.NewDecoder(c.Request().Body)
+	// err := decoder.Decode(&user)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest)
+	// }
+
+	id := c.FormValue("id")
+	id2, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return echo.ErrBadRequest
 	}
+	user.ID = id2
+	user.Password = c.FormValue("password")
 
-	userResponse, err := us.UserService.Find(c.Request().Context(), user.ID, user.Password)
+	userResponse, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
