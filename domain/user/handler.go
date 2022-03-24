@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/izzanzahrial/blog-api-echo/entity"
 	"github.com/labstack/echo/v4"
 )
@@ -51,12 +52,12 @@ func (us *userHandler) Create(c echo.Context) error {
 	user.Name = c.FormValue("name")
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return echo.ErrBadRequest
 	}
 
 	userResponse, err := us.UserService.Create(c.Request().Context(), user)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return echo.ErrInternalServerError
 	}
 
 	webResponse := webResponse{
@@ -78,11 +79,16 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
+	userClaims := c.Get("user").(*jwt.Token)
+	claims := userClaims.Claims.(*JWTClaims)
+	id := claims.UserID
+
+	user.ID = id
 	user.Name = c.FormValue("name")
 
 	userResponse, err := us.UserService.UpdateUser(c.Request().Context(), user)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return echo.ErrInternalServerError
 	}
 
 	webResponse := webResponse{
@@ -104,14 +110,19 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
+	userClaims := c.Get("user").(*jwt.Token)
+	claims := userClaims.Claims.(*JWTClaims)
+	id := claims.UserID
+
+	user.ID = id
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return echo.ErrBadRequest
 	}
 
 	userResponse, err := us.UserService.UpdatePassword(c.Request().Context(), user)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return echo.ErrInternalServerError
 	}
 
 	webResponse := webResponse{
@@ -132,12 +143,19 @@ func (us *userHandler) Delete(c echo.Context) error {
 	// if err != nil {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
+	userClaims := c.Get("user").(*jwt.Token)
+	claims := userClaims.Claims.(*JWTClaims)
+	idClaims := claims.UserID
 
 	id := c.FormValue("id")
 	id2, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return echo.ErrBadRequest
 	}
+	if idClaims != id2 {
+		return echo.ErrBadRequest
+	}
+
 	user.ID = id2
 	user.Password = c.FormValue("password")
 
@@ -169,16 +187,17 @@ func (us *userHandler) Login(c echo.Context) error {
 	user.ID = id2
 	user.Password = c.FormValue("password")
 
-	userResponse, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)
+	userResponse, token, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return echo.ErrUnauthorized
 	}
 
+	// check this again
 	webResponse := webResponse{
 		code:   http.StatusFound,
 		status: "",
-		data:   userResponse,
+		data:   []interface{}{userResponse, token},
 	}
 
-	return c.JSON(http.StatusFound, webResponse)
+	return c.JSON(http.StatusOK, webResponse)
 }

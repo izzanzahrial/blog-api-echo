@@ -13,7 +13,7 @@ CREATE TABLE users (
     password VARCHAR (255) NOT NULL
 );
 
-CREATE INDEX idx_user ON users(username);
+CREATE INDEX idx_user ON users(user_id, password);
 
 CREATE TABLE favourites (
     fav_id serial PRIMARY KEY,

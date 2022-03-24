@@ -61,7 +61,7 @@ func (p *postgreRepository) Delete(ctx context.Context, tx *sql.Tx, user entity.
 	return nil
 }
 
-func (p *postgreRepository) Find(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (entity.User, error) {
+func (p *postgreRepository) Login(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (entity.User, error) {
 	SQL := "SELECT name FROM user WHERE id = ? AND password = ?"
 	rows, err := tx.QueryContext(ctx, SQL, ID, pass)
 	if err != nil {

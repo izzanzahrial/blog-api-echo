@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt"
 	"github.com/izzanzahrial/blog-api-echo/entity"
 )
 
@@ -20,7 +22,7 @@ type UserService interface {
 	UpdateUser(ctx context.Context, user entity.User) (entity.User, error)
 	UpdatePassword(ctx context.Context, user entity.User) (entity.User, error)
 	Delete(ctx context.Context, id uint64, pass string) error
-	Login(ctx context.Context, id uint64, pass string) (entity.User, error)
+	Login(ctx context.Context, id uint64, pass string) (entity.User, string, error)
 }
 
 type userService struct {
@@ -89,7 +91,6 @@ func (us *userService) UpdateUser(ctx context.Context, user entity.User) (entity
 	}
 
 	return user, nil
-
 }
 
 func (us *userService) UpdatePassword(ctx context.Context, user entity.User) (entity.User, error) {
@@ -103,7 +104,7 @@ func (us *userService) UpdatePassword(ctx context.Context, user entity.User) (en
 	}
 	defer tx.Rollback()
 
-	oldUser, err := us.UserRepository.Find(ctx, tx, user.ID, user.Password)
+	oldUser, err := us.UserRepository.Login(ctx, tx, user.ID, user.Password)
 	if err != nil {
 		return user, err
 	}
@@ -129,7 +130,7 @@ func (us *userService) Delete(ctx context.Context, id uint64, pass string) error
 	}
 	defer tx.Rollback()
 
-	user, err := us.UserRepository.Find(ctx, tx, id, pass)
+	user, err := us.UserRepository.Login(ctx, tx, id, pass)
 	if err != nil {
 		return err
 	}
@@ -145,21 +146,51 @@ func (us *userService) Delete(ctx context.Context, id uint64, pass string) error
 	return nil
 }
 
-func (us *userService) Login(ctx context.Context, id uint64, pass string) (entity.User, error) {
+func (us *userService) Login(ctx context.Context, id uint64, pass string) (entity.User, string, error) {
 	tx, err := us.DB.Begin()
 	if err != nil {
-		return entity.User{}, ErrFailedToBeginTransaction
+		return entity.User{}, "", ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	user, err := us.UserRepository.Find(ctx, tx, id, pass)
+	user, err := us.UserRepository.Login(ctx, tx, id, pass)
 	if err != nil {
-		return user, err
+		return user, "", err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return user, ErrFailedToCommitTransaction
+		return user, "", ErrFailedToCommitTransaction
 	}
 
-	return user, nil
+	token, err := createJWTToken(user.ID, false)
+	if err != nil {
+		return user, token, err
+	}
+
+	return user, token, nil
+}
+
+type JWTClaims struct {
+	UserID uint64
+	Admin  bool
+	jwt.StandardClaims
+}
+
+func createJWTToken(userID uint64, admin bool) (string, error) {
+	claims := JWTClaims{
+		userID,
+		admin,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 3600).Unix(),
+		},
+	}
+
+	rawToken := jwt.NewWithClaims(jwt.SigningMethodES512, claims)
+
+	token, err := rawToken.SignedString([]byte("izzan"))
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
