@@ -34,16 +34,16 @@ func main() {
 	p.POST("", postHandler.Create)
 	p.GET("", postHandler.FindAll)
 	p.GET("/:postid", postHandler.FindByID)
-	p.PUT("/:postid", postHandler.Update)
-	p.DELETE("/:postid", postHandler.Delete)
+	p.PUT("/:postid", postHandler.Update, middleware.JWTWithConfig(jwtConfig))
+	p.DELETE("/:postid", postHandler.Delete, middleware.JWTWithConfig(jwtConfig))
 
-	// u := e.Group("/api/v1/user")
+	u := e.Group("/api/v1/user")
 
-	// u.POST("", userHandler.Create)
-	// u.POST("", userHandler.Login)
-	// u.POST("", userHandler.UpdateUser)
-	// u.POST("", userHandler.UpdatePassword)
-	// u.POST("", userHandler.Delete)
+	u.POST("", userHandler.Create)
+	u.PUT("", userHandler.UpdateUser, middleware.JWTWithConfig(jwtConfig))
+	u.DELETE("", userHandler.Delete, middleware.JWTWithConfig(jwtConfig))
+	u.POST("/login", userHandler.Login)
+	u.PUT("/password", userHandler.UpdatePassword, middleware.JWTWithConfig(jwtConfig))
 
 	e.Logger.Fatal(e.Start(":1323"))
 }

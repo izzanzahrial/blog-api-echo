@@ -71,7 +71,7 @@ func (p *postgreRepository) FindByID(ctx context.Context, tx *sql.Tx, ID uint64)
 }
 
 func (p *postgreRepository) FindAll(ctx context.Context, tx *sql.Tx) ([]entity.Post, error) {
-	SQL := "SELECT id ,title, content FROM post"
+	SQL := "SELECT id, title, content FROM post"
 	rows, err := tx.QueryContext(ctx, SQL)
 	if err != nil {
 		return nil, ErrPostNotFound

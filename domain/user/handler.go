@@ -39,8 +39,6 @@ type webResponse struct {
 }
 
 func (us *userHandler) Create(c echo.Context) error {
-	user := entity.User{}
-
 	// Should i use body request or form value
 	// defer c.Request().Body.Close()
 
@@ -49,6 +47,7 @@ func (us *userHandler) Create(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
+	user := entity.User{}
 	user.Name = c.FormValue("name")
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
@@ -70,8 +69,6 @@ func (us *userHandler) Create(c echo.Context) error {
 }
 
 func (us *userHandler) UpdateUser(c echo.Context) error {
-	user := entity.User{}
-
 	// defer c.Request().Body.Close()
 
 	// err := json.NewDecoder(c.Request().Body).Decode(&user)
@@ -83,6 +80,7 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 	claims := userClaims.Claims.(*JWTClaims)
 	id := claims.UserID
 
+	user := entity.User{}
 	user.ID = id
 	user.Name = c.FormValue("name")
 
@@ -101,8 +99,6 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 }
 
 func (us *userHandler) UpdatePassword(c echo.Context) error {
-	user := entity.User{}
-
 	// defer c.Request().Body.Close()
 
 	// err := json.NewDecoder(c.Request().Body).Decode(&user)
@@ -114,6 +110,7 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 	claims := userClaims.Claims.(*JWTClaims)
 	id := claims.UserID
 
+	user := entity.User{}
 	user.ID = id
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
@@ -135,14 +132,13 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 }
 
 func (us *userHandler) Delete(c echo.Context) error {
-	user := entity.User{}
-
 	// defer c.Request().Body.Close()
 
 	// err := json.NewDecoder(c.Request().Body).Decode(&user)
 	// if err != nil {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
+
 	userClaims := c.Get("user").(*jwt.Token)
 	claims := userClaims.Claims.(*JWTClaims)
 	idClaims := claims.UserID
@@ -150,12 +146,13 @@ func (us *userHandler) Delete(c echo.Context) error {
 	id := c.FormValue("id")
 	id2, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return echo.ErrBadRequest
+		return echo.ErrInternalServerError
 	}
 	if idClaims != id2 {
 		return echo.ErrBadRequest
 	}
 
+	user := entity.User{}
 	user.ID = id2
 	user.Password = c.FormValue("password")
 
@@ -169,8 +166,6 @@ func (us *userHandler) Delete(c echo.Context) error {
 }
 
 func (us *userHandler) Login(c echo.Context) error {
-	user := entity.User{}
-
 	// defer c.Request().Body.Close()
 
 	// decoder := json.NewDecoder(c.Request().Body)
@@ -180,11 +175,13 @@ func (us *userHandler) Login(c echo.Context) error {
 	// }
 
 	id := c.FormValue("id")
-	id2, err := strconv.ParseUint(id, 10, 64)
+	parseID, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return echo.ErrBadRequest
+		return echo.ErrInternalServerError
 	}
-	user.ID = id2
+
+	user := entity.User{}
+	user.ID = parseID
 	user.Password = c.FormValue("password")
 
 	userResponse, token, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)

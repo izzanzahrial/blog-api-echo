@@ -16,7 +16,7 @@ CREATE TABLE users (
 CREATE INDEX idx_user ON users(user_id, password);
 
 CREATE TABLE favourites (
-    fav_id serial PRIMARY KEY,
-    FOREIGN KEY (post_id) REFERENCES posts (post_id),
-    FOREIGN KEY (user_id) REFERENCES users (user_id)
+    FOREIGN KEY (user_id) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES posts (post_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT favourites_pkey PRIMARY KEY (user_id, post_id) -- explicit pk
 )
