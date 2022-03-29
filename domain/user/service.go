@@ -9,12 +9,15 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/izzanzahrial/blog-api-echo/entity"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	ErrUserIsntValidate          = errors.New("user data from handle isn't validate")
 	ErrFailedToBeginTransaction  = errors.New("failed to begin transaction to the repository")
 	ErrFailedToCommitTransaction = errors.New("failed to commit transaction to the repository")
+	ErrFailedToGeneratePassword  = errors.New("failed to generate password")
+	ErrUnauthorizedUser          = errors.New("unathorized user")
 )
 
 type UserService interface {
@@ -153,9 +156,18 @@ func (us *userService) Login(ctx context.Context, id uint64, pass string) (entit
 	}
 	defer tx.Rollback()
 
-	user, err := us.UserRepository.Login(ctx, tx, id, pass)
+	hashedPassword, err := hashPassword(pass)
+	if err != nil {
+		return entity.User{}, "", err
+	}
+
+	user, err := us.UserRepository.Login(ctx, tx, id, hashedPassword)
 	if err != nil {
 		return user, "", err
+	}
+
+	if ok := CheckPasswordHash(hashedPassword, user.Password); !ok {
+		return user, "", ErrUnauthorizedUser
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -193,4 +205,18 @@ func createJWTToken(userID uint64, admin bool) (string, error) {
 	}
 
 	return token, nil
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		return "", ErrFailedToGeneratePassword
+	}
+
+	return string(bytes), nil
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
