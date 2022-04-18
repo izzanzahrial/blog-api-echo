@@ -1,11 +1,12 @@
-package post
+package handler
 
 import (
 	"errors"
 	"net/http"
 	"strconv"
 
-	"github.com/izzanzahrial/blog-api-echo/entity"
+	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
+	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/labstack/echo/v4"
 )
 
@@ -22,12 +23,12 @@ type PostHandler interface {
 }
 
 type postHandler struct {
-	PostService PostService
+	Service posting.Service
 }
 
-func NewPostHandler(ps PostService) PostHandler {
+func NewPostHandler(ps posting.Service) PostHandler {
 	return &postHandler{
-		PostService: ps,
+		Service: ps,
 	}
 }
 
@@ -38,7 +39,7 @@ type webResponse struct {
 }
 
 func (ph *postHandler) Create(c echo.Context) error {
-	post := entity.Post{}
+	post := repository.Post{}
 	post.Title = c.FormValue("title")
 	post.Content = c.FormValue("content")
 
@@ -49,7 +50,7 @@ func (ph *postHandler) Create(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.PostService.Create(c.Request().Context(), post)
+	postResponse, err := ph.Service.Create(c.Request().Context(), post)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -70,7 +71,7 @@ func (ph *postHandler) Update(c echo.Context) error {
 		return echo.ErrInternalServerError
 	}
 
-	post := entity.Post{}
+	post := repository.Post{}
 	post.ID = updatedID
 	post.Title = c.FormValue("title")
 	post.Content = c.FormValue("content")
@@ -82,7 +83,7 @@ func (ph *postHandler) Update(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.PostService.Update(c.Request().Context(), post)
+	postResponse, err := ph.Service.Update(c.Request().Context(), post)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -112,7 +113,10 @@ func (ph *postHandler) Delete(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	ph.PostService.Delete(c.Request().Context(), deletedID)
+	if err := ph.Service.Delete(c.Request().Context(), deletedID); err != nil {
+		return echo.ErrInternalServerError
+	}
+
 	webResponse := webResponse{
 		code:   http.StatusOK,
 		status: "",
@@ -138,7 +142,7 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.PostService.FindByID(c.Request().Context(), searchID)
+	postResponse, err := ph.Service.FindByID(c.Request().Context(), searchID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
@@ -153,9 +157,9 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 }
 
 func (ph *postHandler) FindAll(c echo.Context) error {
-	var posts []entity.Post
+	var posts []repository.Post
 
-	posts, err := ph.PostService.FindAll(c.Request().Context())
+	posts, err := ph.Service.FindAll(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}

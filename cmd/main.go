@@ -4,6 +4,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/domain/post"
 	"github.com/izzanzahrial/blog-api-echo/domain/user"
+	"github.com/izzanzahrial/blog-api-echo/pkg/handler"
+	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
+	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
@@ -14,9 +17,9 @@ func main() {
 	validate := validator.New()
 	postgreDB, _ := post.NewPostgreDatabase()
 
-	postRepository := post.NewPostgreRepository()
-	postService := post.NewPostService(postRepository, postgreDB, validate)
-	postHandler := post.NewPostHandler(postService)
+	postRepository := repository.NewPostgre()
+	postService := posting.NewService(postRepository, postgreDB, validate)
+	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
 	userService := user.NewUserService(userRepository, postgreDB, validate)

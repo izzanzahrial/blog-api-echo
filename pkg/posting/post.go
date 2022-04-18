@@ -1,4 +1,4 @@
-package entity
+package posting
 
 type Post struct {
 	ID      uint64
