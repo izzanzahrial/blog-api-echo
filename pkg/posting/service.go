@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
+	"github.com/stretchr/testify/mock"
 )
 
 var (
@@ -23,10 +24,38 @@ type Service interface {
 	FindAll(ctx context.Context) ([]repository.Post, error)
 }
 
+// naming things is hard
+type validatorStruct interface {
+	Struct(s interface{}) error
+}
+
+type MockValidator struct {
+	mock.Mock
+}
+
+func (m *MockValidator) Struct(s interface{}) error {
+	args := m.Called(s)
+	return args.Error(0)
+}
+
+// naming things is hard
+type txDB interface {
+	Begin() (*sql.Tx, error)
+}
+
+type MockDB struct {
+	mock.Mock
+}
+
+func (m *MockDB) Begin() (*sql.Tx, error) {
+	args := m.Called()
+	return args.Get(0).(*sql.Tx), args.Error(1)
+}
+
 type service struct {
 	Repository repository.PostDatabase
-	DB         *sql.DB
-	Validate   *validator.Validate
+	DB         txDB
+	Validate   validatorStruct
 }
 
 func NewService(pr repository.PostDatabase, db *sql.DB, val *validator.Validate) Service {

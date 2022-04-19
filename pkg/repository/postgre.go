@@ -3,7 +3,34 @@ package repository
 import (
 	"context"
 	"database/sql"
+
+	"github.com/stretchr/testify/mock"
 )
+
+type MockPostgre struct {
+	mock.Mock
+}
+
+func (m *MockPostgre) Create(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
+	args := m.Called(ctx, tx, ps)
+	return args.Get(0).(Post), args.Error(1)
+}
+func (m *MockPostgre) Update(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
+	args := m.Called(ctx, tx, ps)
+	return args.Get(0).(Post), args.Error(1)
+}
+func (m *MockPostgre) Delete(ctx context.Context, tx *sql.Tx, ps Post) error {
+	args := m.Called(ctx, tx, ps)
+	return args.Error(0)
+}
+func (m *MockPostgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, error) {
+	args := m.Called(ctx, tx, ID)
+	return args.Get(0).(Post), args.Error(1)
+}
+func (m *MockPostgre) FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error) {
+	args := m.Called(ctx, tx)
+	return args.Get(0).([]Post), args.Error(1)
+}
 
 type postgre struct {
 }
