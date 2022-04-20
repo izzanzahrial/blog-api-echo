@@ -14,15 +14,15 @@ import (
 )
 
 func main() {
-	validate := validator.New()
+	validator := validator.New()
 	postgreDB, _ := post.NewPostgreDatabase()
 
 	postRepository := repository.NewPostgre()
-	postService := posting.NewService(postRepository, postgreDB, validate)
+	postService := posting.NewService(postRepository, postgreDB, validator)
 	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
-	userService := user.NewUserService(userRepository, postgreDB, validate)
+	userService := user.NewUserService(userRepository, postgreDB, validator)
 	userHandler := user.NewUserHandler(userService)
 
 	jwtConfig := middleware.JWTConfig{

@@ -43,7 +43,7 @@ func (p *postgre) Create(ctx context.Context, tx *sql.Tx, ps Post) (Post, error)
 	SQL := "INSERT INTO post(title, content) VALUES (?, ?)"
 	result, err := tx.ExecContext(ctx, SQL, ps.Title, ps.Content)
 	if err != nil {
-		return ps, ErrFailedToAddPost
+		return ps, ErrFailedToCreatePost
 	}
 
 	id, err := result.LastInsertId()
@@ -87,7 +87,7 @@ func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, er
 	post := Post{}
 	if rows.Next() {
 		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
-			return post, ErrFailedToAssertPost
+			return post, ErrFailedToScanPost
 		}
 		return post, nil
 	} else {
@@ -107,7 +107,7 @@ func (p *postgre) FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error) {
 	for rows.Next() {
 		post := Post{}
 		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
-			return nil, ErrFailedToAssertPost
+			return nil, ErrFailedToScanPost
 		}
 		posts = append(posts, post)
 	}

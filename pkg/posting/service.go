@@ -24,18 +24,33 @@ type Service interface {
 	FindAll(ctx context.Context) ([]repository.Post, error)
 }
 
-// naming things is hard
-type validatorStruct interface {
-	Struct(s interface{}) error
-}
-
-type MockValidator struct {
+type MockService struct {
 	mock.Mock
 }
 
-func (m *MockValidator) Struct(s interface{}) error {
-	args := m.Called(s)
+func (m *MockService) Create(ctx context.Context, post repository.Post) (repository.Post, error) {
+	args := m.Called(ctx, post)
+	return args.Get(0).(repository.Post), args.Error(1)
+}
+
+func (m *MockService) Update(ctx context.Context, post repository.Post) (repository.Post, error) {
+	args := m.Called(ctx, post)
+	return args.Get(0).(repository.Post), args.Error(1)
+}
+
+func (m *MockService) Delete(ctx context.Context, postID uint64) error {
+	args := m.Called(ctx, postID)
 	return args.Error(0)
+}
+
+func (m *MockService) FindByID(ctx context.Context, postID uint64) (repository.Post, error) {
+	args := m.Called(ctx, postID)
+	return args.Get(0).(repository.Post), args.Error(1)
+}
+
+func (m *MockService) FindAll(ctx context.Context) ([]repository.Post, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]repository.Post), args.Error(1)
 }
 
 // naming things is hard
@@ -55,10 +70,10 @@ func (m *MockDB) Begin() (*sql.Tx, error) {
 type service struct {
 	Repository repository.PostDatabase
 	DB         txDB
-	Validate   validatorStruct
+	Validate   *validator.Validate
 }
 
-func NewService(pr repository.PostDatabase, db *sql.DB, val *validator.Validate) Service {
+func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate) Service {
 	return &service{
 		Repository: pr,
 		DB:         db,

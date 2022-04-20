@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -50,7 +51,9 @@ func (ph *postHandler) Create(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.Service.Create(c.Request().Context(), post)
+	ctx := context.Background()
+
+	postResponse, err := ph.Service.Create(ctx, post)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -83,7 +86,9 @@ func (ph *postHandler) Update(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.Service.Update(c.Request().Context(), post)
+	ctx := context.Background()
+
+	postResponse, err := ph.Service.Update(ctx, post)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -113,7 +118,9 @@ func (ph *postHandler) Delete(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	if err := ph.Service.Delete(c.Request().Context(), deletedID); err != nil {
+	ctx := context.Background()
+
+	if err := ph.Service.Delete(ctx, deletedID); err != nil {
 		return echo.ErrInternalServerError
 	}
 
@@ -142,7 +149,9 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	postResponse, err := ph.Service.FindByID(c.Request().Context(), searchID)
+	ctx := context.Background()
+
+	postResponse, err := ph.Service.FindByID(ctx, searchID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
@@ -159,7 +168,9 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 func (ph *postHandler) FindAll(c echo.Context) error {
 	var posts []repository.Post
 
-	posts, err := ph.Service.FindAll(c.Request().Context())
+	ctx := context.Background()
+
+	posts, err := ph.Service.FindAll(ctx)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}

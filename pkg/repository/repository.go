@@ -8,10 +8,10 @@ import (
 
 var (
 	ErrPostNotFound       = errors.New("the Post was not found in the repository")
-	ErrFailedToAddPost    = errors.New("failed to add the Post to the repository")
+	ErrFailedToCreatePost = errors.New("failed to create the Post to the repository")
 	ErrFailedUpdatePost   = errors.New("failed to update the Post in the repository")
 	ErrFailedToDeletePost = errors.New("failed to delete the Post in the repository")
-	ErrFailedToAssertPost = errors.New("failed to assert the Post")
+	ErrFailedToScanPost   = errors.New("failed to scan the Post")
 )
 
 type PostDatabase interface {

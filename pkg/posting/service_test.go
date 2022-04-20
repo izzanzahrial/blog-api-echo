@@ -2,18 +2,21 @@ package posting
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestService_Create(t *testing.T) {
-	service := service{
-		Repository: new(repository.MockPostgre),
-		DB:         new(MockDB),
-		Validate:   new(MockValidator),
-	}
+func TestServiceCreate(t *testing.T) {
+	mockRepo := new(repository.MockPostgre)
+	mockDB := new(MockDB)
+	validator := validator.New()
+
+	service := NewService(mockRepo, mockDB, validator)
+
 	subtests := []struct {
 		name         string
 		ctx          context.Context
@@ -22,7 +25,7 @@ func TestService_Create(t *testing.T) {
 		expectedErr  error
 	}{
 		{
-			name: "Succesful Create Post",
+			name: "Succesful Service Create Post",
 			ctx:  context.Background(),
 			post: repository.Post{
 				ID:      1,
@@ -37,27 +40,39 @@ func TestService_Create(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "Failed Create Post",
+			name: "Failed Service Create Post",
 			ctx:  context.Background(),
 			post: repository.Post{
-				ID:      1,
-				Title:   "Test title",
-				Content: "Test content",
+				ID:      2,
+				Title:   "Test title Error",
+				Content: "Test content Error",
 			},
 			expectedData: repository.Post{
-				ID:      1,
-				Title:   "Test title",
-				Content: "Test content",
+				ID:      2,
+				Title:   "Test title Error",
+				Content: "Test content Error",
 			},
-			expectedErr: repository.ErrFailedToAddPost,
+			expectedErr: repository.ErrFailedToCreatePost,
 		},
 	}
 
 	for _, test := range subtests {
 		t.Run(test.name, func(t *testing.T) {
+			mockDB.On("BEGIN").Return(&sql.Tx{}, nil).Once()
+			switch test.name {
+			case "Succesful Service Create Post":
+				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(test.post, nil).Once()
+			case "Failed Service Create Post":
+				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(
+					test.post, repository.ErrFailedToCreatePost).Once()
+			}
+
 			data, err := service.Create(test.ctx, test.post)
 			assert.Equal(t, test.expectedData, data)
 			assert.Equal(t, test.expectedErr, err)
+
+			mockDB.AssertExpectations(t)
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }
