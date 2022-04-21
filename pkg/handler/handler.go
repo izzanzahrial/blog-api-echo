@@ -34,9 +34,9 @@ func NewPostHandler(ps posting.Service) PostHandler {
 }
 
 type webResponse struct {
-	code   int
-	status string
-	data   interface{}
+	Code   int         `json:"code"`
+	Status string      `json:"status"`
+	Data   interface{} `json:"data"`
 }
 
 func (ph *postHandler) Create(c echo.Context) error {
@@ -59,9 +59,9 @@ func (ph *postHandler) Create(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusCreated,
-		status: "",
-		data:   postResponse,
+		Code:   http.StatusCreated,
+		Status: "",
+		Data:   postResponse,
 	}
 
 	return c.JSON(http.StatusCreated, webResponse)
@@ -94,9 +94,9 @@ func (ph *postHandler) Update(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusAccepted,
-		status: "",
-		data:   postResponse,
+		Code:   http.StatusAccepted,
+		Status: "",
+		Data:   postResponse,
 	}
 
 	return c.JSON(http.StatusAccepted, webResponse)
@@ -125,8 +125,8 @@ func (ph *postHandler) Delete(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusOK,
-		status: "",
+		Code:   http.StatusOK,
+		Status: "",
 	}
 
 	return c.JSON(http.StatusOK, webResponse)
@@ -157,9 +157,9 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusFound,
-		status: "",
-		data:   postResponse,
+		Code:   http.StatusFound,
+		Status: "",
+		Data:   postResponse,
 	}
 
 	return c.JSON(http.StatusFound, webResponse)
@@ -176,9 +176,9 @@ func (ph *postHandler) FindAll(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusFound,
-		status: "",
-		data:   posts,
+		Code:   http.StatusFound,
+		Status: "",
+		Data:   posts,
 	}
 
 	return c.JSON(http.StatusFound, webResponse)

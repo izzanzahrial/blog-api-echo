@@ -1,7 +1,7 @@
 package repository
 
 type Post struct {
-	ID      uint64
-	Title   string
-	Content string
+	ID      uint64 `json:"id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }

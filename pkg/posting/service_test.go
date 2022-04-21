@@ -47,12 +47,8 @@ func TestServiceCreate(t *testing.T) {
 				Title:   "Test title Error",
 				Content: "Test content Error",
 			},
-			expectedData: repository.Post{
-				ID:      2,
-				Title:   "Test title Error",
-				Content: "Test content Error",
-			},
-			expectedErr: repository.ErrFailedToCreatePost,
+			expectedData: repository.Post{},
+			expectedErr:  repository.ErrFailedToCreatePost,
 		},
 	}
 
@@ -64,7 +60,7 @@ func TestServiceCreate(t *testing.T) {
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(test.post, nil).Once()
 			case "Failed Service Create Post":
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(
-					test.post, repository.ErrFailedToCreatePost).Once()
+					repository.Post{}, repository.ErrFailedToCreatePost).Once()
 			}
 
 			data, err := service.Create(test.ctx, test.post)

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,7 +13,6 @@ import (
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestHandlerCreate(t *testing.T) {
@@ -21,6 +22,7 @@ func TestHandlerCreate(t *testing.T) {
 	subtest := []struct {
 		name         string
 		post         repository.Post
+		ctx          context.Context
 		expectedData webResponse
 		expectedErr  int
 	}{
@@ -31,10 +33,11 @@ func TestHandlerCreate(t *testing.T) {
 				Title:   "Test title",
 				Content: "Test content",
 			},
+			ctx: context.Background(),
 			expectedData: webResponse{
-				code:   http.StatusCreated,
-				status: "",
-				data: repository.Post{
+				Code:   http.StatusCreated,
+				Status: "",
+				Data: repository.Post{
 					ID:      1,
 					Title:   "Test title",
 					Content: "Test content",
@@ -49,10 +52,11 @@ func TestHandlerCreate(t *testing.T) {
 				Title:   "Test title",
 				Content: "Test content",
 			},
+			ctx: context.Background(),
 			expectedData: webResponse{
-				code:   http.StatusCreated,
-				status: "",
-				data: repository.Post{
+				Code:   http.StatusCreated,
+				Status: "",
+				Data: repository.Post{
 					ID:      2,
 					Title:   "Test title",
 					Content: "Test content",
@@ -68,7 +72,7 @@ func TestHandlerCreate(t *testing.T) {
 			f.Set("title", test.post.Title)
 			f.Set("content", test.post.Content)
 
-			req := httptest.NewRequest(http.MethodPost, "", strings.NewReader(f.Encode()))
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(f.Encode()))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -76,16 +80,24 @@ func TestHandlerCreate(t *testing.T) {
 
 			switch test.name {
 			case "Succesful Handler Create Post":
-				mockService.On("Create", mock.Anything).Return(&repository.Post{}, nil)
+				mockService.On("Create", test.ctx, test.post).Return(test.post, nil).Once()
 			case "Failed Handler Create Post":
-				mockService.On("Create", mock.Anything).Return(&repository.Post{}, nil)
+				mockService.On("Create", test.ctx, test.post).Return(repository.Post{}, nil).Once()
 			}
 
 			h.Create(c)
 
-			// convert to expected data
-			// assert.Equal(t, test.expectedData, rec.Body)
+			var data webResponse
+			dataByte := rec.Body.Bytes()
+			err := json.Unmarshal(dataByte, &data)
+			if err != nil {
+				t.Errorf("Failed to unmarshal data to webresponse")
+			}
+
+			assert.Equal(t, test.expectedData, data)
 			assert.Equal(t, test.expectedErr, rec.Code)
+
+			mockService.AssertExpectations(t)
 		})
 	}
 }

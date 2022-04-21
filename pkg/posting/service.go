@@ -95,11 +95,11 @@ func (ps *service) Create(ctx context.Context, post repository.Post) (repository
 
 	createdPost, err := ps.Repository.Create(ctx, tx, post)
 	if err != nil {
-		return createdPost, err
+		return repository.Post{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return createdPost, ErrFailedToCommitTransaction
+		return repository.Post{}, ErrFailedToCommitTransaction
 	}
 
 	return createdPost, nil
@@ -119,16 +119,16 @@ func (ps *service) Update(ctx context.Context, post repository.Post) (repository
 
 	foundPost, err := ps.Repository.FindByID(ctx, tx, post.ID)
 	if err != nil {
-		return foundPost, err
+		return repository.Post{}, err
 	}
 
 	updatedPost, err := ps.Repository.Update(ctx, tx, foundPost)
 	if err != nil {
-		return updatedPost, err
+		return repository.Post{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return updatedPost, ErrFailedToCommitTransaction
+		return repository.Post{}, ErrFailedToCommitTransaction
 	}
 
 	return updatedPost, nil
@@ -165,11 +165,11 @@ func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post
 
 	foundPost, err := ps.Repository.FindByID(ctx, tx, postID)
 	if err != nil {
-		return foundPost, err
+		return repository.Post{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return foundPost, ErrFailedToCommitTransaction
+		return repository.Post{}, ErrFailedToCommitTransaction
 	}
 
 	return foundPost, nil
@@ -183,11 +183,11 @@ func (ps *service) FindAll(ctx context.Context) ([]repository.Post, error) {
 
 	posts, err := ps.Repository.FindAll(ctx, tx)
 	if err != nil {
-		return posts, err
+		return []repository.Post{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return posts, ErrFailedToCommitTransaction
+		return []repository.Post{}, ErrFailedToCommitTransaction
 	}
 
 	return posts, nil
