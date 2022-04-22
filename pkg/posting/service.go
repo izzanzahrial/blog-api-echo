@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/go-redis/redis/v8"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/mock"
 )
@@ -14,6 +17,7 @@ var (
 	ErrPostIsntValidate          = errors.New("post data from handler isn't validate")
 	ErrFailedToBeginTransaction  = errors.New("failed to begin transaction to the repository")
 	ErrFailedToCommitTransaction = errors.New("failed to commit transaction to the repository")
+	ErrFailedToCachePost         = errors.New("failed to cache post")
 )
 
 type Service interface {
@@ -71,13 +75,15 @@ type service struct {
 	Repository repository.PostDatabase
 	DB         txDB
 	Validate   *validator.Validate
+	Rdb        *redis.Client
 }
 
-func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate) Service {
+func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client) Service {
 	return &service{
 		Repository: pr,
 		DB:         db,
 		Validate:   val,
+		Rdb:        rdb,
 	}
 }
 
@@ -100,6 +106,12 @@ func (ps *service) Create(ctx context.Context, post repository.Post) (repository
 
 	if err := tx.Commit(); err != nil {
 		return repository.Post{}, ErrFailedToCommitTransaction
+	}
+
+	ttl := time.Duration(3600) * time.Second
+	op1 := ps.Rdb.Set(context.Background(), strconv.FormatUint(createdPost.ID, 10), createdPost, ttl)
+	if err := op1.Err(); err != nil {
+		return createdPost, ErrFailedToCachePost
 	}
 
 	return createdPost, nil
@@ -129,6 +141,12 @@ func (ps *service) Update(ctx context.Context, post repository.Post) (repository
 
 	if err := tx.Commit(); err != nil {
 		return repository.Post{}, ErrFailedToCommitTransaction
+	}
+
+	ttl := time.Duration(3600) * time.Second
+	op1 := ps.Rdb.Set(context.Background(), strconv.FormatUint(updatedPost.ID, 10), updatedPost, ttl)
+	if err := op1.Err(); err != nil {
+		return updatedPost, ErrFailedToCachePost
 	}
 
 	return updatedPost, nil
@@ -162,6 +180,11 @@ func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post
 		return repository.Post{}, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
+
+	val, err := ps.Rdb.Get(context.Background(), strconv.FormatUint(postID, 10)).Result()
+	if err == nil {
+		return val, nil
+	}
 
 	foundPost, err := ps.Repository.FindByID(ctx, tx, postID)
 	if err != nil {

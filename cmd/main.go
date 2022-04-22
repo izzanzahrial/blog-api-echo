@@ -1,11 +1,14 @@
 package main
 
 import (
+	"os"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/domain/post"
 	"github.com/izzanzahrial/blog-api-echo/domain/user"
 	"github.com/izzanzahrial/blog-api-echo/pkg/handler"
 	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
+	"github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -13,12 +16,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var (
+	redisHost = os.Getenv("redisHost")
+	redisPass = os.Getenv("redisPass")
+)
+
 func main() {
 	validator := validator.New()
 	postgreDB, _ := post.NewPostgreDatabase()
+	redis := redis.NewRedis(redisHost, redisPass)
 
 	postRepository := repository.NewPostgre()
-	postService := posting.NewService(postRepository, postgreDB, validator)
+	postService := posting.NewService(postRepository, postgreDB, validator, redis)
 	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
