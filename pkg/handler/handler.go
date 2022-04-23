@@ -79,13 +79,6 @@ func (ph *postHandler) Update(c echo.Context) error {
 	post.Title = c.FormValue("title")
 	post.Content = c.FormValue("content")
 
-	// defer c.Request().Body.Close()
-
-	// err := json.NewDecoder(c.Request().Body).Decode(&post)
-	// if err != nil {
-	// 	return echo.NewHTTPError(http.StatusBadRequest)
-	// }
-
 	ctx := context.Background()
 
 	postResponse, err := ph.Service.Update(ctx, post)
@@ -109,15 +102,6 @@ func (ph *postHandler) Delete(c echo.Context) error {
 		return echo.ErrInternalServerError
 	}
 
-	// post := entity.Post{}
-
-	// defer c.Request().Body.Close()
-
-	// err := json.NewDecoder(c.Request().Body).Decode(&post)
-	// if err != nil {
-	// 	return echo.NewHTTPError(http.StatusBadRequest)
-	// }
-
 	ctx := context.Background()
 
 	if err := ph.Service.Delete(ctx, deletedID); err != nil {
@@ -138,16 +122,6 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
-
-	// post := entity.Post{}
-
-	// defer c.Request().Body.Close()
-
-	// decoder := json.NewDecoder(c.Request().Body)
-	// err := decoder.Decode(&post)
-	// if err != nil {
-	// 	return echo.NewHTTPError(http.StatusBadRequest)
-	// }
 
 	ctx := context.Background()
 

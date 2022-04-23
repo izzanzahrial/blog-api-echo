@@ -6,6 +6,15 @@ services:
       - POSTGRES_USER=izzanzahrial
       - POSTGRES_PASSWORD=izzanzahrial
       - POSTGRES_DB=pgdocker
+  redis:
+    image: redis:6.2-alpine
+    # untuk menjalankan sesuai redis config
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    # memindahkan redis config local ke dalam container
+    volumes:
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
   api:
     build:
       context: .
@@ -14,5 +23,6 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
+      - redis
     entrypoint: [ "postgres:5432", "/app/start.sh"]
     command: [ "/app/main" ]

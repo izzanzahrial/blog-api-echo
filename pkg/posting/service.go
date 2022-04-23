@@ -3,8 +3,10 @@ package posting
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -109,7 +111,11 @@ func (ps *service) Create(ctx context.Context, post repository.Post) (repository
 	}
 
 	ttl := time.Duration(3600) * time.Second
-	op1 := ps.Rdb.Set(context.Background(), strconv.FormatUint(createdPost.ID, 10), createdPost, ttl)
+	id := strconv.FormatUint(createdPost.ID, 10)
+	str := strings.Builder{}
+	str.WriteString("post")
+	str.WriteString(id)
+	op1 := ps.Rdb.Set(context.Background(), str.String(), createdPost, ttl)
 	if err := op1.Err(); err != nil {
 		return createdPost, ErrFailedToCachePost
 	}
@@ -144,7 +150,11 @@ func (ps *service) Update(ctx context.Context, post repository.Post) (repository
 	}
 
 	ttl := time.Duration(3600) * time.Second
-	op1 := ps.Rdb.Set(context.Background(), strconv.FormatUint(updatedPost.ID, 10), updatedPost, ttl)
+	id := strconv.FormatUint(updatedPost.ID, 10)
+	str := strings.Builder{}
+	str.WriteString("post")
+	str.WriteString(id)
+	op1 := ps.Rdb.Set(context.Background(), str.String(), updatedPost, ttl)
 	if err := op1.Err(); err != nil {
 		return updatedPost, ErrFailedToCachePost
 	}
@@ -172,19 +182,34 @@ func (ps *service) Delete(ctx context.Context, postID uint64) error {
 		return ErrFailedToCommitTransaction
 	}
 
+	id := strconv.FormatUint(postID, 10)
+	str := strings.Builder{}
+	str.WriteString("post")
+	str.WriteString(id)
+	op1 := ps.Rdb.Del(context.Background(), str.String())
+	if err := op1.Err(); err != nil {
+		return err
+	}
+
 	return nil
 }
 func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post, error) {
+	id := strconv.FormatUint(postID, 10)
+	str := strings.Builder{}
+	str.WriteString("post")
+	str.WriteString(id)
+	val, err := ps.Rdb.Get(context.Background(), str.String()).Result()
+	if err == nil {
+		post := repository.Post{}
+		json.Unmarshal([]byte(val), &post)
+		return post, nil
+	}
+
 	tx, err := ps.DB.Begin()
 	if err != nil {
 		return repository.Post{}, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
-
-	val, err := ps.Rdb.Get(context.Background(), strconv.FormatUint(postID, 10)).Result()
-	if err == nil {
-		return val, nil
-	}
 
 	foundPost, err := ps.Repository.FindByID(ctx, tx, postID)
 	if err != nil {
@@ -198,6 +223,17 @@ func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post
 	return foundPost, nil
 }
 func (ps *service) FindAll(ctx context.Context) ([]repository.Post, error) {
+	val, err := ps.Rdb.Keys(context.Background(), "post*").Result()
+	if err == nil {
+		posts := []repository.Post{}
+		post := repository.Post{}
+		for _, n := range val {
+			json.Unmarshal([]byte(n), &post)
+			posts = append(posts, post)
+		}
+		return posts, nil
+	}
+
 	tx, err := ps.DB.Begin()
 	if err != nil {
 		return []repository.Post{}, ErrFailedToBeginTransaction
