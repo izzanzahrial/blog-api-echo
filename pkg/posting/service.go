@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis/v8"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
@@ -78,14 +79,16 @@ type service struct {
 	DB         txDB
 	Validate   *validator.Validate
 	Rdb        *redis.Client
+	Es         *elasticsearch.Client
 }
 
-func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client) Service {
+func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client, es *elasticsearch.Client) Service {
 	return &service{
 		Repository: pr,
 		DB:         db,
 		Validate:   val,
 		Rdb:        rdb,
+		Es:         es,
 	}
 }
 
@@ -100,6 +103,12 @@ func (ps *service) Create(ctx context.Context, post repository.Post) (repository
 		return post, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
+
+	// res, err := ps.Es.Info()
+	// if err != nil {
+	// 	return repository.Post{}, err
+	// }
+	// defer res.Body.Close()
 
 	createdPost, err := ps.Repository.Create(ctx, tx, post)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/domain/post"
 	"github.com/izzanzahrial/blog-api-echo/domain/user"
+	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
 	"github.com/izzanzahrial/blog-api-echo/pkg/handler"
 	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
 	"github.com/izzanzahrial/blog-api-echo/pkg/redis"
@@ -17,17 +18,21 @@ import (
 )
 
 var (
-	redisHost = os.Getenv("redisHost")
-	redisPass = os.Getenv("redisPass")
+	redisHost   = os.Getenv("redisHost")
+	redisPass   = os.Getenv("redisPass")
+	esAddresses = os.Getenv("esAddresses")
+	esUsername  = os.Getenv("esUsername")
+	esPassword  = os.Getenv("esPassword")
 )
 
 func main() {
 	validator := validator.New()
 	postgreDB, _ := post.NewPostgreDatabase()
 	redis := redis.NewRedis(redisHost, redisPass)
+	es := elastic.NewElastic(esUsername, esPassword, esAddresses)
 
 	postRepository := repository.NewPostgre()
-	postService := posting.NewService(postRepository, postgreDB, validator, redis)
+	postService := posting.NewService(postRepository, postgreDB, validator, redis, es)
 	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
