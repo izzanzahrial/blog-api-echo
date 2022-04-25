@@ -32,7 +32,7 @@ func main() {
 	es := elastic.NewElastic(esUsername, esPassword, esAddresses)
 
 	postRepository := repository.NewPostgre()
-	postService := posting.NewService(postRepository, postgreDB, validator, redis, es)
+	postService := posting.NewService(postRepository, postgreDB, validator, redis, es.Client)
 	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
