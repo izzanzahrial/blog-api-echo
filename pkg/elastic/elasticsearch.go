@@ -15,6 +15,17 @@ import (
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 )
 
+type SearchResults struct {
+	Total int         `json:"total"`
+	Hits  []*Document `json:"hits"`
+}
+
+type Document struct {
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
 type Elastic struct {
 	Client *elasticsearch.Client
 	Index  string
@@ -176,7 +187,8 @@ func (e *Elastic) FindByID(ctx context.Context, postID string) (repository.Post,
 	return post, nil
 }
 
-func (e *Elastic) SearchPost(ctx context.Context, query string, from int, size int) error {
+func (e *Elastic) SearchPost(ctx context.Context, query string, from int, size int) (*SearchResults, error) {
+	var results SearchResults
 
 	res, err := e.Client.Search(
 		e.Client.Search.WithContext(ctx),
@@ -185,20 +197,58 @@ func (e *Elastic) SearchPost(ctx context.Context, query string, from int, size i
 		e.Client.Search.WithTrackTotalHits(true),
 	)
 	if err != nil {
-		return
+		return &results, err
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
 		var e map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
-			return
+			return &results, err
 		}
-		return fmt.Errorf("[%s] %s: %s", res.Status(), e["error"].(map[string]interface{})["type"], e["error"].(map[string]interface{})["reason"])
+		return &results, fmt.Errorf("[%s] %s: %s", res.Status(), e["error"].(map[string]interface{})["type"], e["error"].(map[string]interface{})["reason"])
 	}
 
-	// look at the result from elasticsearch
-	// make the spesific struct for that result
+	type envelopeResponse struct {
+		Took int
+		Hits struct {
+			Total struct {
+				Value int
+			}
+			Hits []struct {
+				ID     string          `json:"_id"`
+				Source json.RawMessage `json:"_source"`
+			}
+		}
+	}
+
+	var r envelopeResponse
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		return &results, err
+	}
+
+	results.Total = r.Hits.Total.Value
+
+	if len(r.Hits.Hits) < 1 {
+		results.Hits = []*Document{}
+		return &results, nil
+	}
+
+	for _, hit := range r.Hits.Hits {
+		var doc Document
+		doc.ID, err = strconv.Atoi(hit.ID)
+		if err != nil {
+			return &results, err
+		}
+
+		if err := json.Unmarshal(hit.Source, &doc); err != nil {
+			return &results, err
+		}
+
+		results.Hits = append(results.Hits, &doc)
+	}
+
+	return &results, nil
 }
 
 func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
