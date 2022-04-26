@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -140,3 +142,98 @@ func (e *Elastic) Delete(ctx context.Context, postID string) error {
 
 	return nil
 }
+
+type document struct {
+	Source interface{} `json:"_source"`
+}
+
+func (e *Elastic) FindByID(ctx context.Context, postID string) (repository.Post, error) {
+	req := esapi.GetRequest{
+		Index:      e.Index,
+		DocumentID: postID,
+	}
+
+	res, err := req.Do(ctx, e.Client)
+	if err != nil {
+		return repository.Post{}, fmt.Errorf("failed to find the post by id: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return repository.Post{}, fmt.Errorf("failed because there's an error in response: %s", res.String())
+	}
+
+	var (
+		post repository.Post
+		body document
+	)
+	body.Source = &post
+
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return repository.Post{}, fmt.Errorf("failed to decode the result body: %w", err)
+	}
+
+	return post, nil
+}
+
+func (e *Elastic) SearchPost(ctx context.Context, query string, from int, size int) error {
+
+	res, err := e.Client.Search(
+		e.Client.Search.WithContext(ctx),
+		e.Client.Search.WithIndex(e.Index),
+		e.Client.Search.WithBody(e.BuildBody(from, size, query)),
+		e.Client.Search.WithTrackTotalHits(true),
+	)
+	if err != nil {
+		return
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		var e map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			return
+		}
+		return fmt.Errorf("[%s] %s: %s", res.Status(), e["error"].(map[string]interface{})["type"], e["error"].(map[string]interface{})["reason"])
+	}
+
+	// look at the result from elasticsearch
+	// make the spesific struct for that result
+}
+
+func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
+	var body strings.Builder
+
+	body.WriteString("{\n")
+
+	if query == "" {
+		body.WriteString(searchAll)
+	} else {
+		body.WriteString(fmt.Sprintf(searchMatch, from, size, query))
+	}
+
+	body.WriteString("\n}")
+
+	return strings.NewReader(body.String())
+}
+
+const searchAll = `"query": { 
+							"match_all": {}
+					},
+					"size": 25,
+					"sort": {
+							"title": "asc"
+					}`
+
+const searchMatch = `"query": {
+							"from": %d,
+							"size": %d,
+							"multi_match": {
+										"query": %q,
+										"fields": [
+												"title^2",
+												"content"
+										],
+										"type": "phrase"
+									}
+								}`
