@@ -95,6 +95,26 @@ func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, er
 	}
 }
 
+func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string) ([]Post, error) {
+	SQL := "SELECT id, title, content FROM post WHERE title LIKE '?%' OR content LIKE '?%'"
+	rows, err := tx.QueryContext(ctx, SQL)
+	if err != nil {
+		return []Post{}, ErrPostNotFound
+	}
+	defer rows.Close()
+
+	var result []Post
+	for rows.Next() {
+		var post Post
+		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
+			return nil, ErrFailedToScanPost
+		}
+		result = append(result, post)
+	}
+
+	return result, nil
+}
+
 func (p *postgre) FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error) {
 	SQL := "SELECT id, title, content FROM post"
 	rows, err := tx.QueryContext(ctx, SQL)

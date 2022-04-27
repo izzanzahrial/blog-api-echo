@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis/v8"
+	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/mock"
 )
@@ -79,10 +79,10 @@ type service struct {
 	DB         txDB
 	Validate   *validator.Validate
 	Rdb        *redis.Client
-	Es         *elasticsearch.Client
+	Es         *elastic.Elastic
 }
 
-func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client, es *elasticsearch.Client) Service {
+func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client, es *elastic.Elastic) Service {
 	return &service{
 		Repository: pr,
 		DB:         db,
@@ -231,6 +231,42 @@ func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post
 
 	return foundPost, nil
 }
+
+func (ps *service) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error) {
+	var posts []repository.Post
+
+	result, err := ps.Es.SearchPost(ctx, query, from, size)
+	if err == nil {
+		for _, doc := range result.Hits {
+			var post repository.Post
+			post.ID = uint64(doc.ID)
+			post.Title = doc.Title
+			post.Content = doc.Content
+
+			posts = append(posts, post)
+
+			return posts, nil
+		}
+	}
+
+	tx, err := ps.DB.Begin()
+	if err != nil {
+		return posts, ErrFailedToBeginTransaction
+	}
+	defer tx.Rollback()
+
+	posts, err = ps.Repository.FindByTitleContent(ctx, tx, query)
+	if err != nil {
+		return posts, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return []repository.Post{}, ErrFailedToCommitTransaction
+	}
+
+	return posts, nil
+}
+
 func (ps *service) FindAll(ctx context.Context) ([]repository.Post, error) {
 	val, err := ps.Rdb.Keys(context.Background(), "post*").Result()
 	if err == nil {
