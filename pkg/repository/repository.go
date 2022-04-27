@@ -19,6 +19,6 @@ type PostDatabase interface {
 	Update(ctx context.Context, tx *sql.Tx, ps Post) (Post, error)
 	Delete(ctx context.Context, tx *sql.Tx, ps Post) error
 	FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, error)
-	FindByTitleContent(ctx context.Context, tx *sql.Tx, query string) ([]Post, error)
+	FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]Post, error)
 	FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error)
 }

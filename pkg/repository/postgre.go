@@ -95,9 +95,10 @@ func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, er
 	}
 }
 
-func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string) ([]Post, error) {
-	SQL := "SELECT id, title, content FROM post WHERE title LIKE '?%' OR content LIKE '?%'"
-	rows, err := tx.QueryContext(ctx, SQL)
+func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]Post, error) {
+	// full text search postgres https://blog.crunchydata.com/blog/postgres-full-text-search-a-search-engine-in-a-database
+	SQL := "SELECT id, title, content ORDER BY ts_rank(ts_title_content, to_tsquery('english', '?')) LIMIT ? OFFSET ? DESC"
+	rows, err := tx.QueryContext(ctx, SQL, query, size, from)
 	if err != nil {
 		return []Post{}, ErrPostNotFound
 	}

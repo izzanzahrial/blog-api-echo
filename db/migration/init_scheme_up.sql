@@ -5,6 +5,16 @@ CREATE TABLE posts (
     created_at TIMESTAMP NOT NULL
 );
 
+-- tsvector = values that stored in ordered list of distinct words
+-- setweight = to weight the value of the data
+-- coalesce = function that will return the first value that's not null 
+-- https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-coalesce/
+-- full text search postgres = https://blog.crunchydata.com/blog/postgres-full-text-search-a-search-engine-in-a-database
+ALTER TABLE posts ADD COLUMN ts_title_content tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(content, '')), 'B') STORED;
+)
+
 CREATE INDEX idx_post_title ON posts(title);
 
 CREATE TABLE users (

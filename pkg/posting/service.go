@@ -104,12 +104,6 @@ func (ps *service) Create(ctx context.Context, post repository.Post) (repository
 	}
 	defer tx.Rollback()
 
-	// res, err := ps.Es.Info()
-	// if err != nil {
-	// 	return repository.Post{}, err
-	// }
-	// defer res.Body.Close()
-
 	createdPost, err := ps.Repository.Create(ctx, tx, post)
 	if err != nil {
 		return repository.Post{}, err
@@ -235,6 +229,12 @@ func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post
 func (ps *service) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error) {
 	var posts []repository.Post
 
+	val, err := ps.Rdb.Get(ctx, query).Result()
+	if err == nil {
+		json.Unmarshal([]byte(val), &posts)
+		return posts, nil
+	}
+
 	result, err := ps.Es.SearchPost(ctx, query, from, size)
 	if err == nil {
 		for _, doc := range result.Hits {
@@ -244,9 +244,15 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 			post.Content = doc.Content
 
 			posts = append(posts, post)
-
-			return posts, nil
 		}
+
+		ttl := time.Duration(3600) * time.Second
+		op1 := ps.Rdb.Set(ctx, query, posts, ttl)
+		if err := op1.Err(); err != nil {
+			return posts, ErrFailedToCachePost
+		}
+
+		return posts, nil
 	}
 
 	tx, err := ps.DB.Begin()
@@ -255,7 +261,7 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 	}
 	defer tx.Rollback()
 
-	posts, err = ps.Repository.FindByTitleContent(ctx, tx, query)
+	posts, err = ps.Repository.FindByTitleContent(ctx, tx, query, from, size)
 	if err != nil {
 		return posts, err
 	}
