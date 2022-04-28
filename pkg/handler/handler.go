@@ -139,6 +139,35 @@ func (ph *postHandler) FindByID(c echo.Context) error {
 	return c.JSON(http.StatusFound, webResponse)
 }
 
+func (ph *postHandler) FindByTitleContent(c echo.Context) error {
+	var posts []repository.Post
+
+	ctx := context.Background()
+
+	query := c.QueryParam("q")
+	from, err := strconv.Atoi(c.QueryParam("from"))
+	if err != nil {
+		return echo.ErrInternalServerError
+	}
+	size, err := strconv.Atoi(c.QueryParam("size"))
+	if err != nil {
+		return echo.ErrInternalServerError
+	}
+
+	posts, err = ph.Service.FindByTitleContent(ctx, query, from, size)
+	if err != nil {
+		return echo.ErrInternalServerError
+	}
+
+	webResponse := webResponse{
+		Code:   http.StatusOK,
+		Status: "",
+		Data:   posts,
+	}
+
+	return c.JSON(http.StatusOK, webResponse)
+}
+
 func (ph *postHandler) FindAll(c echo.Context) error {
 	var posts []repository.Post
 

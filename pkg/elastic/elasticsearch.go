@@ -13,6 +13,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
+	"github.com/stretchr/testify/mock"
 )
 
 type SearchResults struct {
@@ -24,6 +25,49 @@ type Document struct {
 	ID      int    `json:"id"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
+}
+
+type ElasticDB interface {
+	CreateIndex(index string) error
+	Insert(ctx context.Context, post repository.Post) error
+	Update(ctx context.Context, post repository.Post) error
+	Delete(ctx context.Context, postID string) error
+	FindByID(ctx context.Context, postID string) (repository.Post, error)
+	FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error)
+}
+
+type MockElastic struct {
+	mock.Mock
+}
+
+func (me *MockElastic) CreateIndex(index string) error {
+	args := me.Called(index)
+	return args.Error(0)
+}
+
+func (me *MockElastic) Insert(ctx context.Context, post repository.Post) error {
+	args := me.Called(ctx, post)
+	return args.Error(0)
+}
+
+func (me *MockElastic) Update(ctx context.Context, post repository.Post) error {
+	args := me.Called(ctx, post)
+	return args.Error(0)
+}
+
+func (me *MockElastic) Delete(ctx context.Context, postID string) error {
+	args := me.Called(ctx, postID)
+	return args.Error(0)
+}
+
+func (me *MockElastic) FindByID(ctx context.Context, postID string) (repository.Post, error) {
+	args := me.Called(ctx, postID)
+	return args.Get(0).(repository.Post), args.Error(1)
+}
+
+func (me *MockElastic) FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error) {
+	args := me.Called(ctx, query, from, size)
+	return args.Get(0).(*SearchResults), args.Error(1)
 }
 
 type Elastic struct {
@@ -187,7 +231,7 @@ func (e *Elastic) FindByID(ctx context.Context, postID string) (repository.Post,
 	return post, nil
 }
 
-func (e *Elastic) SearchPost(ctx context.Context, query string, from int, size int) (*SearchResults, error) {
+func (e *Elastic) FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error) {
 	var results SearchResults
 
 	res, err := e.Client.Search(

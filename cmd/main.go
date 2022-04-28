@@ -9,7 +9,7 @@ import (
 	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
 	"github.com/izzanzahrial/blog-api-echo/pkg/handler"
 	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
-	"github.com/izzanzahrial/blog-api-echo/pkg/redis"
+	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -28,7 +28,7 @@ var (
 func main() {
 	validator := validator.New()
 	postgreDB, _ := post.NewPostgreDatabase()
-	redis := redis.NewRedis(redisHost, redisPass)
+	redis := redisDB.NewRedis(redisHost, redisPass)
 	es := elastic.NewElastic(esUsername, esPassword, esAddresses)
 
 	postRepository := repository.NewPostgre()

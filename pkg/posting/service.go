@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/go-redis/redis/v8"
 	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
+	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/mock"
 )
@@ -28,6 +28,7 @@ type Service interface {
 	Update(ctx context.Context, post repository.Post) (repository.Post, error)
 	Delete(ctx context.Context, postID uint64) error
 	FindByID(ctx context.Context, postID uint64) (repository.Post, error)
+	FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error)
 	FindAll(ctx context.Context) ([]repository.Post, error)
 }
 
@@ -60,6 +61,11 @@ func (m *MockService) FindAll(ctx context.Context) ([]repository.Post, error) {
 	return args.Get(0).([]repository.Post), args.Error(1)
 }
 
+func (m *MockService) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error) {
+	args := m.Called(ctx, query, from, size)
+	return args.Get(0).([]repository.Post), args.Error(1)
+}
+
 // naming things is hard
 type txDB interface {
 	Begin() (*sql.Tx, error)
@@ -78,11 +84,11 @@ type service struct {
 	Repository repository.PostDatabase
 	DB         txDB
 	Validate   *validator.Validate
-	Rdb        *redis.Client
-	Es         *elastic.Elastic
+	Rdb        redisDB.RedisDB
+	Es         elastic.ElasticDB
 }
 
-func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb *redis.Client, es *elastic.Elastic) Service {
+func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb redisDB.RedisDB, es elastic.ElasticDB) Service {
 	return &service{
 		Repository: pr,
 		DB:         db,
@@ -235,7 +241,7 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 		return posts, nil
 	}
 
-	result, err := ps.Es.SearchPost(ctx, query, from, size)
+	result, err := ps.Es.FindByTitleContent(ctx, query, from, size)
 	if err == nil {
 		for _, doc := range result.Hits {
 			var post repository.Post

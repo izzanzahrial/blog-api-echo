@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
+	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,9 +15,11 @@ import (
 func TestServiceCreate(t *testing.T) {
 	mockRepo := new(repository.MockPostgre)
 	mockDB := new(MockDB)
+	mockRedis := new(redisDB.MockRedis)
+	mockElastic := new(elastic.MockElastic)
 	validator := validator.New()
 
-	service := NewService(mockRepo, mockDB, validator)
+	service := NewService(mockRepo, mockDB, validator, mockRedis, mockElastic)
 
 	subtests := []struct {
 		name         string
