@@ -13,7 +13,7 @@ type RedisDB interface {
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
 	Get(ctx context.Context, key string) *redis.StringCmd
 	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
-	Result() (string, error)
+	// Result() (string, error)
 }
 
 type MockRedis struct {
@@ -40,10 +40,10 @@ func (mr *MockRedis) Keys(ctx context.Context, pattern string) *redis.StringSlic
 	return args.Get(0).(*redis.StringSliceCmd)
 }
 
-func (mr *MockRedis) Result() (string, error) {
-	args := mr.Called()
-	return args.Get(0).(string), args.Error(1)
-}
+// func (mr *MockRedis) Result() (string, error) {
+// 	args := mr.Called()
+// 	return args.Get(0).(string), args.Error(1)
+// }
 
 func NewRedis(host string, pass string) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{

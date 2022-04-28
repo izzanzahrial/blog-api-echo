@@ -20,6 +20,7 @@ type PostHandler interface {
 	Update(c echo.Context) error
 	Delete(c echo.Context) error
 	FindByID(c echo.Context) error
+	FindByTitleContent(c echo.Context) error
 	FindAll(c echo.Context) error
 }
 
@@ -144,11 +145,12 @@ func (ph *postHandler) FindByTitleContent(c echo.Context) error {
 
 	ctx := context.Background()
 
-	query := c.QueryParam("q")
+	query := c.QueryParam("query")
 	from, err := strconv.Atoi(c.QueryParam("from"))
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
+
 	size, err := strconv.Atoi(c.QueryParam("size"))
 	if err != nil {
 		return echo.ErrInternalServerError

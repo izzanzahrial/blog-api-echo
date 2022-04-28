@@ -32,7 +32,7 @@ func main() {
 	es := elastic.NewElastic(esUsername, esPassword, esAddresses)
 
 	postRepository := repository.NewPostgre()
-	postService := posting.NewService(postRepository, postgreDB, validator, redis, es.Client)
+	postService := posting.NewService(postRepository, postgreDB, validator, redis, es)
 	postHandler := handler.NewPostHandler(postService)
 
 	userRepository := user.NewPostgreRepository()
@@ -53,6 +53,7 @@ func main() {
 	p.GET("/:postid", postHandler.FindByID)
 	p.PUT("/:postid", postHandler.Update, middleware.JWTWithConfig(jwtConfig))
 	p.DELETE("/:postid", postHandler.Delete, middleware.JWTWithConfig(jwtConfig))
+	p.GET("/:result", postHandler.FindByTitleContent)
 
 	u := e.Group("/api/v1/user")
 
