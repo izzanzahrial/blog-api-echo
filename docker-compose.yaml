@@ -8,11 +8,11 @@ services:
       - POSTGRES_DB=pgdocker
   redis:
     image: redis:6.2-alpine
-    # untuk menjalankan sesuai redis config
+    # for running with the same redis config
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - 6379:6379
-    # memindahkan redis config local ke dalam container
+    # move redis config from local to container
     volumes:
       - ./config/redis.conf:/usr/local/etc/redis/redis.conf
   es01:

@@ -14,11 +14,11 @@ var (
 	ErrFailedToScanPost   = errors.New("failed to scan the Post")
 )
 
-type PostDatabase interface {
-	Create(ctx context.Context, tx *sql.Tx, ps Post) (Post, error)
-	Update(ctx context.Context, tx *sql.Tx, ps Post) (Post, error)
-	Delete(ctx context.Context, tx *sql.Tx, ps Post) error
-	FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, error)
-	FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]Post, error)
-	FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error)
+type Post interface {
+	Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error)
+	Update(ctx context.Context, tx *sql.Tx, pd PostData) error
+	Delete(ctx context.Context, tx *sql.Tx, pd PostData) error
+	FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error)
+	FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error)
+	FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error)
 }

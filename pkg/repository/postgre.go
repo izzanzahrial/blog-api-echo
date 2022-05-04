@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -11,113 +12,116 @@ type MockPostgre struct {
 	mock.Mock
 }
 
-func (m *MockPostgre) Create(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
-	args := m.Called(ctx, tx, ps)
-	return args.Get(0).(Post), args.Error(1)
+func (m *MockPostgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
+	args := m.Called(ctx, tx, pd)
+	return args.Get(0).(PostData), args.Error(1)
 }
 
-func (m *MockPostgre) Update(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
-	args := m.Called(ctx, tx, ps)
-	return args.Get(0).(Post), args.Error(1)
-}
-
-func (m *MockPostgre) Delete(ctx context.Context, tx *sql.Tx, ps Post) error {
-	args := m.Called(ctx, tx, ps)
+func (m *MockPostgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
+	args := m.Called(ctx, tx, pd)
 	return args.Error(0)
 }
 
-func (m *MockPostgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, error) {
-	args := m.Called(ctx, tx, ID)
-	return args.Get(0).(Post), args.Error(1)
+func (m *MockPostgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
+	args := m.Called(ctx, tx, pd)
+	return args.Error(0)
 }
 
-func (m *MockPostgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]Post, error) {
+func (m *MockPostgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
+	args := m.Called(ctx, tx, id)
+	return args.Get(0).(PostData), args.Error(1)
+}
+
+func (m *MockPostgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
 	args := m.Called(ctx, tx, query, from, size)
-	return args.Get(0).([]Post), args.Error(1)
+	return args.Get(0).([]PostData), args.Error(1)
 }
 
-func (m *MockPostgre) FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error) {
-	args := m.Called(ctx, tx)
-	return args.Get(0).([]Post), args.Error(1)
+func (m *MockPostgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
+	args := m.Called(ctx, tx, from, size)
+	return args.Get(0).([]PostData), args.Error(1)
 }
 
 type postgre struct {
 }
 
-func NewPostgre() PostDatabase {
+func NewPostgre() Post {
 	return &postgre{}
 }
 
-func (p *postgre) Create(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
-	SQL := "INSERT INTO post(title, content) VALUES (?, ?)"
-	result, err := tx.ExecContext(ctx, SQL, ps.Title, ps.Content)
+func (p *postgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
+	SQL := "INSERT INTO post(title, short_desc, content) VALUES (?, ?, ?)"
+	result, err := tx.ExecContext(ctx, SQL, pd.Title, pd.ShortDesc, pd.Content, pd.CreatedAt)
 	if err != nil {
-		return ps, ErrFailedToCreatePost
+		return pd, fmt.Errorf("failed to created post: %v, because %w", pd, err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return ps, ErrPostNotFound
+		return pd, fmt.Errorf("failed post cannot be found: %v, because %w", pd, err)
 	}
 
-	ps.ID = uint64(id)
+	pd.ID = id
 
-	return ps, nil
+	return pd, nil
 }
 
-func (p *postgre) Update(ctx context.Context, tx *sql.Tx, ps Post) (Post, error) {
-	SQL := "UPDATE post SET title = ?, content = ? WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, ps.Title, ps.Content, ps.ID)
+func (p *postgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
+	SQL := "UPDATE post SET title = ?, short_desc = ?, content = ? WHERE id = ?"
+	_, err := tx.ExecContext(ctx, SQL, pd.Title, pd.ShortDesc, pd.Content, pd.ID)
 	if err != nil {
-		return ps, ErrFailedUpdatePost
-	}
-
-	return ps, nil
-}
-
-func (p *postgre) Delete(ctx context.Context, tx *sql.Tx, ps Post) error {
-	SQL := "DELETE FROM post WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, ps.ID)
-	if err != nil {
-		return ErrFailedToDeletePost
+		return fmt.Errorf("failed to update post: %v, because %w", pd, err)
 	}
 
 	return nil
 }
 
-func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (Post, error) {
-	SQL := "SELECT title, content FROM post WHERE id = ?"
-	rows, err := tx.QueryContext(ctx, SQL, ID)
+func (p *postgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
+	SQL := "DELETE FROM post WHERE id = ?"
+	_, err := tx.ExecContext(ctx, SQL, pd.ID)
 	if err != nil {
-		return Post{}, ErrPostNotFound
+		return fmt.Errorf("failed to delete post: %v because %w", pd, err)
+	}
+
+	return nil
+}
+
+func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
+	SQL := "SELECT title, short_desc, content, created_at FROM post WHERE id = ?"
+	rows, err := tx.QueryContext(ctx, SQL, id)
+	if err != nil {
+		return PostData{}, fmt.Errorf("failed to find post with id: %d because %w", id, err)
 	}
 	defer rows.Close()
 
-	post := Post{}
+	var post PostData
 	if rows.Next() {
-		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
-			return post, ErrFailedToScanPost
+		if err := rows.Scan(&post.ID, &post.Title, &post.ShortDesc, &post.Content, &post.CreatedAt); err != nil {
+			return post, fmt.Errorf("failed to scan post with id: %d because %w", id, err)
 		}
 		return post, nil
 	} else {
-		return post, ErrPostNotFound
+		return post, fmt.Errorf("failed to find post with id: %d because %w", id, err)
 	}
 }
 
-func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]Post, error) {
+func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
 	// full text search postgres https://blog.crunchydata.com/blog/postgres-full-text-search-a-search-engine-in-a-database
-	SQL := "SELECT id, title, content ORDER BY ts_rank(ts_title_content, to_tsquery('english', '?')) LIMIT ? OFFSET ? DESC"
-	rows, err := tx.QueryContext(ctx, SQL, query, size, from)
+	selectFrom := "SELECT id, title, short_desc, content, created_at FROM posts"
+	condition := "WHERE ts_title_content @@ to_tsquery('english', '?')"
+	orderBy := "ORDER BY ts_rank(ts_title_content, to_tsquery('english', '?')) LIMIT ? OFFSET ? DESC"
+	SQL := selectFrom + " " + condition + " " + orderBy
+	rows, err := tx.QueryContext(ctx, SQL, query, query, size, from)
 	if err != nil {
-		return []Post{}, ErrPostNotFound
+		return []PostData{}, fmt.Errorf("failed to find post with keywords: %s because %w", query, err)
 	}
 	defer rows.Close()
 
-	var result []Post
+	var result []PostData
 	for rows.Next() {
-		var post Post
-		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
-			return nil, ErrFailedToScanPost
+		var post PostData
+		if err := rows.Scan(&post.ID, &post.Title, &post.ShortDesc, &post.Content, &post.CreatedAt); err != nil {
+			return []PostData{}, fmt.Errorf("failed to find scan post with keywords: %s because %w", query, err)
 		}
 		result = append(result, post)
 	}
@@ -125,19 +129,19 @@ func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query stri
 	return result, nil
 }
 
-func (p *postgre) FindAll(ctx context.Context, tx *sql.Tx) ([]Post, error) {
-	SQL := "SELECT id, title, content FROM post"
-	rows, err := tx.QueryContext(ctx, SQL)
+func (p *postgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
+	SQL := "SELECT id, title, short_desc, created_at content FROM post LIMIT ? OFFSET ?"
+	rows, err := tx.QueryContext(ctx, SQL, size, from)
 	if err != nil {
-		return nil, ErrPostNotFound
+		return []PostData{}, fmt.Errorf("failed to find posts because %w", err)
 	}
 	defer rows.Close()
 
-	var posts []Post
+	var posts []PostData
 	for rows.Next() {
-		post := Post{}
-		if err := rows.Scan(&post.ID, &post.Title, &post.Content); err != nil {
-			return nil, ErrFailedToScanPost
+		var post PostData
+		if err := rows.Scan(&post.ID, &post.Title, &post.ShortDesc, &post.Content, &post.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan post becasue %w", err)
 		}
 		posts = append(posts, post)
 	}
