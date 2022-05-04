@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
-	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
+	caching "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/stretchr/testify/mock"
 )
@@ -24,161 +25,171 @@ var (
 )
 
 type Service interface {
-	Create(ctx context.Context, post repository.Post) (repository.Post, error)
-	Update(ctx context.Context, post repository.Post) (repository.Post, error)
-	Delete(ctx context.Context, postID uint64) error
-	FindByID(ctx context.Context, postID uint64) (repository.Post, error)
-	FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error)
-	FindAll(ctx context.Context) ([]repository.Post, error)
+	Create(ctx context.Context, post PostData) (repository.PostData, error)
+	Update(ctx context.Context, post repository.PostData) error
+	Delete(ctx context.Context, id int64) error
+	FindByID(ctx context.Context, id int64) (repository.PostData, error)
+	FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.PostData, error)
+	FindRecent(ctx context.Context, from int, size int) ([]repository.PostData, error)
 }
 
 type MockService struct {
 	mock.Mock
 }
 
-func (m *MockService) Create(ctx context.Context, post repository.Post) (repository.Post, error) {
+func (m *MockService) Create(ctx context.Context, post PostData) (repository.PostData, error) {
 	args := m.Called(ctx, post)
-	return args.Get(0).(repository.Post), args.Error(1)
+	return args.Get(0).(repository.PostData), args.Error(1)
 }
 
-func (m *MockService) Update(ctx context.Context, post repository.Post) (repository.Post, error) {
+func (m *MockService) Update(ctx context.Context, post repository.PostData) error {
 	args := m.Called(ctx, post)
-	return args.Get(0).(repository.Post), args.Error(1)
-}
-
-func (m *MockService) Delete(ctx context.Context, postID uint64) error {
-	args := m.Called(ctx, postID)
 	return args.Error(0)
 }
 
-func (m *MockService) FindByID(ctx context.Context, postID uint64) (repository.Post, error) {
-	args := m.Called(ctx, postID)
-	return args.Get(0).(repository.Post), args.Error(1)
+func (m *MockService) Delete(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
-func (m *MockService) FindAll(ctx context.Context) ([]repository.Post, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]repository.Post), args.Error(1)
+func (m *MockService) FindByID(ctx context.Context, id int64) (repository.PostData, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(repository.PostData), args.Error(1)
 }
 
-func (m *MockService) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error) {
+func (m *MockService) FindRecent(ctx context.Context, from int, size int) ([]repository.PostData, error) {
+	args := m.Called(ctx, from, size)
+	return args.Get(0).([]repository.PostData), args.Error(1)
+}
+
+func (m *MockService) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.PostData, error) {
 	args := m.Called(ctx, query, from, size)
-	return args.Get(0).([]repository.Post), args.Error(1)
+	return args.Get(0).([]repository.PostData), args.Error(1)
 }
 
 // naming things is hard
-type txDB interface {
+type DBtx interface {
 	Begin() (*sql.Tx, error)
 }
 
-type MockDB struct {
+type MockDBtx struct {
 	mock.Mock
 }
 
-func (m *MockDB) Begin() (*sql.Tx, error) {
+func (m *MockDBtx) Begin() (*sql.Tx, error) {
 	args := m.Called()
 	return args.Get(0).(*sql.Tx), args.Error(1)
 }
 
 type service struct {
-	Repository repository.PostDatabase
-	DB         txDB
+	Repository repository.Post
+	DB         DBtx
 	Validate   *validator.Validate
-	Rdb        redisDB.RedisDB
+	Cache      caching.Cache
 	Es         elastic.ElasticDB
 }
 
-func NewService(pr repository.PostDatabase, db txDB, val *validator.Validate, rdb redisDB.RedisDB, es elastic.ElasticDB) Service {
+func NewService(rp repository.Post, db DBtx, val *validator.Validate, cache caching.Cache, es elastic.ElasticDB) Service {
 	return &service{
-		Repository: pr,
+		Repository: rp,
 		DB:         db,
 		Validate:   val,
-		Rdb:        rdb,
+		Cache:      cache,
 		Es:         es,
 	}
 }
 
-func (ps *service) Create(ctx context.Context, post repository.Post) (repository.Post, error) {
+func (ps *service) Create(ctx context.Context, post PostData) (repository.PostData, error) {
 	err := ps.Validate.Struct(post)
 	if err != nil {
-		return post, ErrPostIsntValidate
+		return repository.PostData{}, fmt.Errorf("failed to validate: %v because %w", post, err)
 	}
 
 	tx, err := ps.DB.Begin()
 	if err != nil {
-		return post, ErrFailedToBeginTransaction
+		return repository.PostData{}, fmt.Errorf("failed to begin transaction for: %v because %w", post, err)
 	}
 	defer tx.Rollback()
 
-	createdPost, err := ps.Repository.Create(ctx, tx, post)
+	postData := repository.PostData{
+		Title:     post.Title,
+		ShortDesc: post.ShortDesc,
+		Content:   post.Content,
+		CreatedAt: time.Now(),
+	}
+
+	createdPost, err := ps.Repository.Create(ctx, tx, postData)
 	if err != nil {
-		return repository.Post{}, err
+		return repository.PostData{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return repository.Post{}, ErrFailedToCommitTransaction
+		return repository.PostData{}, fmt.Errorf("failed to commit transaction: %v because %w", createdPost, err)
 	}
 
 	ttl := time.Duration(3600) * time.Second
-	id := strconv.FormatUint(createdPost.ID, 10)
+	strID := strconv.Itoa(int(createdPost.ID))
+
 	str := strings.Builder{}
 	str.WriteString("post")
-	str.WriteString(id)
-	op1 := ps.Rdb.Set(context.Background(), str.String(), createdPost, ttl)
+	str.WriteString(strID)
+
+	op1 := ps.Cache.Set(context.Background(), str.String(), createdPost, ttl)
 	if err := op1.Err(); err != nil {
-		return createdPost, ErrFailedToCachePost
+		return createdPost, fmt.Errorf("failed to cache post: %v because %w", createdPost, err)
 	}
 
 	return createdPost, nil
 }
 
-func (ps *service) Update(ctx context.Context, post repository.Post) (repository.Post, error) {
+func (ps *service) Update(ctx context.Context, post repository.PostData) error {
 	err := ps.Validate.Struct(post)
 	if err != nil {
-		return post, ErrPostIsntValidate
+		return fmt.Errorf("failed to validate: %v because %w", post, err)
 	}
 
 	tx, err := ps.DB.Begin()
 	if err != nil {
-		return post, ErrFailedToBeginTransaction
+		return fmt.Errorf("failed to begin transaction for: %v because %w", post, err)
 	}
 	defer tx.Rollback()
 
 	foundPost, err := ps.Repository.FindByID(ctx, tx, post.ID)
 	if err != nil {
-		return repository.Post{}, err
+		return err
 	}
 
-	updatedPost, err := ps.Repository.Update(ctx, tx, foundPost)
-	if err != nil {
-		return repository.Post{}, err
+	if err := ps.Repository.Update(ctx, tx, foundPost); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return repository.Post{}, ErrFailedToCommitTransaction
+		return fmt.Errorf("failed to commit transcation: %v because %w", foundPost, err)
 	}
 
 	ttl := time.Duration(3600) * time.Second
-	id := strconv.FormatUint(updatedPost.ID, 10)
+	strID := strconv.Itoa(int(foundPost.ID))
+
 	str := strings.Builder{}
 	str.WriteString("post")
-	str.WriteString(id)
-	op1 := ps.Rdb.Set(context.Background(), str.String(), updatedPost, ttl)
+	str.WriteString(strID)
+
+	op1 := ps.Cache.Set(context.Background(), str.String(), post, ttl)
 	if err := op1.Err(); err != nil {
-		return updatedPost, ErrFailedToCachePost
+		return fmt.Errorf("failed to cache post: %v because %w", post, err)
 	}
 
-	return updatedPost, nil
+	return nil
 }
 
-func (ps *service) Delete(ctx context.Context, postID uint64) error {
+func (ps *service) Delete(ctx context.Context, id int64) error {
 	tx, err := ps.DB.Begin()
 	if err != nil {
 		return ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	foundPost, err := ps.Repository.FindByID(ctx, tx, postID)
+	foundPost, err := ps.Repository.FindByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
@@ -188,64 +199,68 @@ func (ps *service) Delete(ctx context.Context, postID uint64) error {
 	}
 
 	if err := tx.Commit(); err != nil {
-		return ErrFailedToCommitTransaction
+		return fmt.Errorf("failed to commit transaction: %d because %w", id, err)
 	}
 
-	id := strconv.FormatUint(postID, 10)
+	strID := strconv.Itoa(int(id))
+
 	str := strings.Builder{}
 	str.WriteString("post")
-	str.WriteString(id)
-	op1 := ps.Rdb.Del(context.Background(), str.String())
+	str.WriteString(strID)
+
+	op1 := ps.Cache.Del(context.Background(), str.String())
 	if err := op1.Err(); err != nil {
 		return err
 	}
 
 	return nil
 }
-func (ps *service) FindByID(ctx context.Context, postID uint64) (repository.Post, error) {
-	id := strconv.FormatUint(postID, 10)
+func (ps *service) FindByID(ctx context.Context, id int64) (repository.PostData, error) {
+	strID := strconv.Itoa(int(id))
+
 	str := strings.Builder{}
 	str.WriteString("post")
-	str.WriteString(id)
-	val, err := ps.Rdb.Get(context.Background(), str.String()).Result()
+	str.WriteString(strID)
+
+	val, err := ps.Cache.Get(context.Background(), str.String()).Result()
 	if err == nil {
-		post := repository.Post{}
+		var post repository.PostData
 		json.Unmarshal([]byte(val), &post)
 		return post, nil
 	}
 
 	tx, err := ps.DB.Begin()
 	if err != nil {
-		return repository.Post{}, ErrFailedToBeginTransaction
+		return repository.PostData{}, fmt.Errorf("failed to begin transaction: %d because %w", id, err)
 	}
 	defer tx.Rollback()
 
-	foundPost, err := ps.Repository.FindByID(ctx, tx, postID)
+	foundPost, err := ps.Repository.FindByID(ctx, tx, id)
 	if err != nil {
-		return repository.Post{}, err
+		return repository.PostData{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return repository.Post{}, ErrFailedToCommitTransaction
+		return repository.PostData{}, fmt.Errorf("failed to commit transaction: %d because %w", id, err)
 	}
 
 	return foundPost, nil
 }
 
-func (ps *service) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.Post, error) {
-	var posts []repository.Post
+func (ps *service) FindByTitleContent(ctx context.Context, query string, from int, size int) ([]repository.PostData, error) {
+	var posts []repository.PostData
 
-	val, err := ps.Rdb.Get(ctx, query).Result()
+	val, err := ps.Cache.Get(ctx, query).Result()
 	if err == nil {
 		json.Unmarshal([]byte(val), &posts)
 		return posts, nil
 	}
 
-	result, err := ps.Es.FindByTitleContent(ctx, query, from, size)
+	foundPosts, err := ps.Es.FindByTitleContent(ctx, query, from, size)
 	if err == nil {
-		for _, doc := range result.Hits {
-			var post repository.Post
-			post.ID = uint64(doc.ID)
+		for _, doc := range foundPosts.Hits {
+			var post repository.PostData
+			post.ID = int64(doc.ID)
 			post.Title = doc.Title
 			post.Content = doc.Content
 
@@ -253,9 +268,9 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 		}
 
 		ttl := time.Duration(3600) * time.Second
-		op1 := ps.Rdb.Set(ctx, query, posts, ttl)
+		op1 := ps.Cache.Set(ctx, query, posts, ttl)
 		if err := op1.Err(); err != nil {
-			return posts, ErrFailedToCachePost
+			return posts, fmt.Errorf("failed to cache: %v because %w", posts, err)
 		}
 
 		return posts, nil
@@ -263,7 +278,7 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 
 	tx, err := ps.DB.Begin()
 	if err != nil {
-		return posts, ErrFailedToBeginTransaction
+		return posts, fmt.Errorf("failed to begin transaction for query: %v because %w", query, err)
 	}
 	defer tx.Rollback()
 
@@ -273,17 +288,17 @@ func (ps *service) FindByTitleContent(ctx context.Context, query string, from in
 	}
 
 	if err := tx.Commit(); err != nil {
-		return []repository.Post{}, ErrFailedToCommitTransaction
+		return []repository.PostData{}, fmt.Errorf("failed to commit transaction for query: %v because %w", query, err)
 	}
 
 	return posts, nil
 }
 
-func (ps *service) FindAll(ctx context.Context) ([]repository.Post, error) {
-	val, err := ps.Rdb.Keys(context.Background(), "post*").Result()
+func (ps *service) FindRecent(ctx context.Context, from int, size int) ([]repository.PostData, error) {
+	val, err := ps.Cache.Keys(context.Background(), "post*").Result()
 	if err == nil {
-		posts := []repository.Post{}
-		post := repository.Post{}
+		var posts []repository.PostData
+		var post repository.PostData
 		for _, n := range val {
 			json.Unmarshal([]byte(n), &post)
 			posts = append(posts, post)
@@ -293,17 +308,17 @@ func (ps *service) FindAll(ctx context.Context) ([]repository.Post, error) {
 
 	tx, err := ps.DB.Begin()
 	if err != nil {
-		return []repository.Post{}, ErrFailedToBeginTransaction
+		return []repository.PostData{}, fmt.Errorf("failed to begin transaction for finding recent post because: %w", err)
 	}
 	defer tx.Rollback()
 
-	posts, err := ps.Repository.FindAll(ctx, tx)
+	posts, err := ps.Repository.FindRecent(ctx, tx, from, size)
 	if err != nil {
-		return []repository.Post{}, err
+		return []repository.PostData{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return []repository.Post{}, ErrFailedToCommitTransaction
+		return []repository.PostData{}, fmt.Errorf("failed to commit transaction for finding recent post because: %w", err)
 	}
 
 	return posts, nil

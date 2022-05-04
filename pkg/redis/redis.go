@@ -1,4 +1,4 @@
-package redisDB
+package caching
 
 import (
 	"context"
@@ -8,12 +8,14 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type RedisDB interface {
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
-	Del(ctx context.Context, keys ...string) *redis.IntCmd
-	Get(ctx context.Context, key string) *redis.StringCmd
-	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
-	// Result() (string, error)
+func NewRedis(host string, pass string) *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     host,
+		Password: pass,
+		DB:       0,
+	})
+
+	return rdb
 }
 
 type MockRedis struct {
@@ -44,13 +46,3 @@ func (mr *MockRedis) Keys(ctx context.Context, pattern string) *redis.StringSlic
 // 	args := mr.Called()
 // 	return args.Get(0).(string), args.Error(1)
 // }
-
-func NewRedis(host string, pass string) *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     host,
-		Password: pass,
-		DB:       0,
-	})
-
-	return rdb
-}

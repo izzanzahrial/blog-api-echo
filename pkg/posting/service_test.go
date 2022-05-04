@@ -14,7 +14,7 @@ import (
 
 func TestServiceCreate(t *testing.T) {
 	mockRepo := new(repository.MockPostgre)
-	mockDB := new(MockDB)
+	mockDB := new(MockDBtx)
 	mockRedis := new(redisDB.MockRedis)
 	mockElastic := new(elastic.MockElastic)
 	validator := validator.New()
@@ -24,34 +24,34 @@ func TestServiceCreate(t *testing.T) {
 	subtests := []struct {
 		name         string
 		ctx          context.Context
-		post         repository.Post
-		expectedData repository.Post
+		post         PostData
+		expectedData PostData
 		expectedErr  error
 	}{
 		{
 			name: "Succesful Service Create Post",
 			ctx:  context.Background(),
-			post: repository.Post{
-				ID:      1,
-				Title:   "Test title",
-				Content: "Test content",
+			post: PostData{
+				Title:     "Test title",
+				ShortDesc: "Test description",
+				Content:   "Test content",
 			},
-			expectedData: repository.Post{
-				ID:      1,
-				Title:   "Test title",
-				Content: "Test content",
+			expectedData: PostData{
+				Title:     "Test title",
+				ShortDesc: "Test description",
+				Content:   "Test content",
 			},
 			expectedErr: nil,
 		},
 		{
 			name: "Failed Service Create Post",
 			ctx:  context.Background(),
-			post: repository.Post{
-				ID:      2,
-				Title:   "Test title Error",
-				Content: "Test content Error",
+			post: PostData{
+				Title:     "Test title Error",
+				ShortDesc: "Test description Error",
+				Content:   "Test content Error",
 			},
-			expectedData: repository.Post{},
+			expectedData: PostData{},
 			expectedErr:  repository.ErrFailedToCreatePost,
 		},
 	}
@@ -64,8 +64,11 @@ func TestServiceCreate(t *testing.T) {
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(test.post, nil).Once()
 			case "Failed Service Create Post":
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(
-					repository.Post{}, repository.ErrFailedToCreatePost).Once()
+					repository.PostData{}, repository.ErrFailedToCreatePost).Once()
 			}
+
+			// check return error in mock repo
+			// create mock redis on
 
 			data, err := service.Create(test.ctx, test.post)
 			assert.Equal(t, test.expectedData, data)
