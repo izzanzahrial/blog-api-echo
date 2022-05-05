@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
@@ -20,49 +21,53 @@ func TestHandlerCreate(t *testing.T) {
 	e := echo.New()
 
 	subtest := []struct {
+		status       bool
 		name         string
-		post         repository.Post
+		post         repository.PostData
 		ctx          context.Context
 		expectedData webResponse
-		expectedErr  int
+		expectedErr  error
 	}{
 		{
-			name: "Succesful Handler Create Post",
-			post: repository.Post{
-				ID:      1,
-				Title:   "Test title",
-				Content: "Test content",
+			status: true,
+			name:   "Succesful Handler Create Post",
+			post: repository.PostData{
+				ID:        1,
+				Title:     "Test title",
+				ShortDesc: "Test short description",
+				Content:   "Test content",
+				CreatedAt: time.Now(),
 			},
 			ctx: context.Background(),
 			expectedData: webResponse{
-				Code:   http.StatusCreated,
-				Status: "",
-				Data: repository.Post{
-					ID:      1,
-					Title:   "Test title",
-					Content: "Test content",
+				Code:    http.StatusCreated,
+				Message: http.StatusText(http.StatusCreated),
+				Data: repository.PostData{
+					ID:        1,
+					Title:     "Test title",
+					ShortDesc: "Test short description",
+					Content:   "Test content",
+					CreatedAt: time.Now(),
 				},
 			},
-			expectedErr: http.StatusOK,
+			expectedErr: nil,
 		},
 		{
-			name: "Failed Handler Create Post",
-			post: repository.Post{
-				ID:      2,
-				Title:   "Test title",
-				Content: "Test content",
+			status: false,
+			name:   "Failed Handler Create Post",
+			post: repository.PostData{
+				ID:        2,
+				Title:     "Test title",
+				ShortDesc: "Test short description",
+				Content:   "Test content",
 			},
 			ctx: context.Background(),
 			expectedData: webResponse{
-				Code:   http.StatusCreated,
-				Status: "",
-				Data: repository.Post{
-					ID:      2,
-					Title:   "Test title",
-					Content: "Test content",
-				},
+				Code:    http.StatusInternalServerError,
+				Message: http.StatusText(http.StatusAccepted),
+				Data:    echo.ErrInternalServerError,
 			},
-			expectedErr: http.StatusInternalServerError,
+			expectedErr: echo.ErrInternalServerError,
 		},
 	}
 
@@ -70,6 +75,7 @@ func TestHandlerCreate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := make(url.Values)
 			f.Set("title", test.post.Title)
+			f.Set("short_desc", test.post.ShortDesc)
 			f.Set("content", test.post.Content)
 
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(f.Encode()))
@@ -78,11 +84,11 @@ func TestHandlerCreate(t *testing.T) {
 			c := e.NewContext(req, rec)
 			h := NewPostHandler(mockService)
 
-			switch test.name {
-			case "Succesful Handler Create Post":
+			switch test.status {
+			case true:
 				mockService.On("Create", test.ctx, test.post).Return(test.post, nil).Once()
-			case "Failed Handler Create Post":
-				mockService.On("Create", test.ctx, test.post).Return(repository.Post{}, nil).Once()
+			case false:
+				mockService.On("Create", test.ctx, test.post).Return(repository.PostData{}, repository.ErrFailedToCreatePost).Once()
 			}
 
 			h.Create(c)

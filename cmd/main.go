@@ -49,7 +49,7 @@ func main() {
 	p := e.Group("/api/v1/posts")
 
 	p.POST("", postHandler.Create)
-	p.GET("", postHandler.FindAll)
+	p.GET("", postHandler.FindRecent)
 	p.GET("/:postid", postHandler.FindByID)
 	p.PUT("/:postid", postHandler.Update, middleware.JWTWithConfig(jwtConfig))
 	p.DELETE("/:postid", postHandler.Delete, middleware.JWTWithConfig(jwtConfig))

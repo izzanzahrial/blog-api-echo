@@ -29,11 +29,12 @@ type Document struct {
 
 type ElasticDB interface {
 	CreateIndex(index string) error
-	Insert(ctx context.Context, post repository.Post) error
-	Update(ctx context.Context, post repository.Post) error
-	Delete(ctx context.Context, postID string) error
-	FindByID(ctx context.Context, postID string) (repository.Post, error)
+	Insert(ctx context.Context, post repository.PostData) error
+	Update(ctx context.Context, post repository.PostData) error
+	Delete(ctx context.Context, id string) error
+	FindByID(ctx context.Context, id string) (repository.PostData, error)
 	FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error)
+	// FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error)
 }
 
 type MockElastic struct {
@@ -45,28 +46,33 @@ func (me *MockElastic) CreateIndex(index string) error {
 	return args.Error(0)
 }
 
-func (me *MockElastic) Insert(ctx context.Context, post repository.Post) error {
+func (me *MockElastic) Insert(ctx context.Context, post repository.PostData) error {
 	args := me.Called(ctx, post)
 	return args.Error(0)
 }
 
-func (me *MockElastic) Update(ctx context.Context, post repository.Post) error {
+func (me *MockElastic) Update(ctx context.Context, post repository.PostData) error {
 	args := me.Called(ctx, post)
 	return args.Error(0)
 }
 
-func (me *MockElastic) Delete(ctx context.Context, postID string) error {
-	args := me.Called(ctx, postID)
+func (me *MockElastic) Delete(ctx context.Context, id string) error {
+	args := me.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (me *MockElastic) FindByID(ctx context.Context, postID string) (repository.Post, error) {
-	args := me.Called(ctx, postID)
-	return args.Get(0).(repository.Post), args.Error(1)
+func (me *MockElastic) FindByID(ctx context.Context, id string) (repository.PostData, error) {
+	args := me.Called(ctx, id)
+	return args.Get(0).(repository.PostData), args.Error(1)
 }
 
 func (me *MockElastic) FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error) {
 	args := me.Called(ctx, query, from, size)
+	return args.Get(0).(*SearchResults), args.Error(1)
+}
+
+func (me *MockElastic) FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error) {
+	args := me.Called(ctx, from, size)
 	return args.Get(0).(*SearchResults), args.Error(1)
 }
 
@@ -129,7 +135,7 @@ func (e *Elastic) CreateIndex(index string) error {
 	return nil
 }
 
-func (e *Elastic) Insert(ctx context.Context, post repository.Post) error {
+func (e *Elastic) Insert(ctx context.Context, post repository.PostData) error {
 	body, err := json.Marshal(post)
 	if err != nil {
 		return fmt.Errorf("failed to marshal: %w", err)
@@ -154,7 +160,7 @@ func (e *Elastic) Insert(ctx context.Context, post repository.Post) error {
 	return nil
 }
 
-func (e *Elastic) Update(ctx context.Context, post repository.Post) error {
+func (e *Elastic) Update(ctx context.Context, post repository.PostData) error {
 	body, err := json.Marshal(post)
 	if err != nil {
 		return fmt.Errorf("failed to marshal: %w", err)
@@ -202,30 +208,30 @@ type document struct {
 	Source interface{} `json:"_source"`
 }
 
-func (e *Elastic) FindByID(ctx context.Context, postID string) (repository.Post, error) {
+func (e *Elastic) FindByID(ctx context.Context, id string) (repository.PostData, error) {
 	req := esapi.GetRequest{
 		Index:      e.Index,
-		DocumentID: postID,
+		DocumentID: id,
 	}
 
 	res, err := req.Do(ctx, e.Client)
 	if err != nil {
-		return repository.Post{}, fmt.Errorf("failed to find the post by id: %w", err)
+		return repository.PostData{}, fmt.Errorf("failed to find the post by id: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
-		return repository.Post{}, fmt.Errorf("failed because there's an error in response: %s", res.String())
+		return repository.PostData{}, fmt.Errorf("failed because there's an error in response: %s", res.String())
 	}
 
 	var (
-		post repository.Post
+		post repository.PostData
 		body document
 	)
 	body.Source = &post
 
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		return repository.Post{}, fmt.Errorf("failed to decode the result body: %w", err)
+		return repository.PostData{}, fmt.Errorf("failed to decode the result body: %w", err)
 	}
 
 	return post, nil
@@ -294,6 +300,11 @@ func (e *Elastic) FindByTitleContent(ctx context.Context, query string, from int
 
 	return &results, nil
 }
+
+// TODO : implement find by recent elastic
+// func (e *Elastic) FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error) {
+
+// }
 
 func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
 	var body strings.Builder

@@ -67,6 +67,11 @@ func (m *MockService) FindByTitleContent(ctx context.Context, query string, from
 	return args.Get(0).([]repository.PostData), args.Error(1)
 }
 
+// type transaction interface {
+// 	Rollback() error
+// 	Commit() error
+// }
+
 // naming things is hard
 type DBtx interface {
 	Begin() (*sql.Tx, error)

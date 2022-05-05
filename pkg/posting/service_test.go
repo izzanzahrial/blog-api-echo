@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/go-redis/redis/v8"
 	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
 	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
@@ -22,6 +23,7 @@ func TestServiceCreate(t *testing.T) {
 	service := NewService(mockRepo, mockDB, validator, mockRedis, mockElastic)
 
 	subtests := []struct {
+		status       bool
 		name         string
 		ctx          context.Context
 		post         PostData
@@ -29,8 +31,9 @@ func TestServiceCreate(t *testing.T) {
 		expectedErr  error
 	}{
 		{
-			name: "Succesful Service Create Post",
-			ctx:  context.Background(),
+			status: true,
+			name:   "Succesful Service Create Post",
+			ctx:    context.Background(),
 			post: PostData{
 				Title:     "Test title",
 				ShortDesc: "Test description",
@@ -44,8 +47,9 @@ func TestServiceCreate(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "Failed Service Create Post",
-			ctx:  context.Background(),
+			status: false,
+			name:   "Failed Service Create Post",
+			ctx:    context.Background(),
 			post: PostData{
 				Title:     "Test title Error",
 				ShortDesc: "Test description Error",
@@ -58,17 +62,21 @@ func TestServiceCreate(t *testing.T) {
 
 	for _, test := range subtests {
 		t.Run(test.name, func(t *testing.T) {
-			mockDB.On("BEGIN").Return(&sql.Tx{}, nil).Once()
-			switch test.name {
-			case "Succesful Service Create Post":
+			mockDB.On("Begin").Return(&sql.Tx{}, nil).Once()
+			switch test.status {
+			case true:
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(test.post, nil).Once()
-			case "Failed Service Create Post":
+			case false:
 				mockRepo.On("Create", test.ctx, &sql.Tx{}, test.post).Return(
 					repository.PostData{}, repository.ErrFailedToCreatePost).Once()
 			}
 
-			// check return error in mock repo
-			// create mock redis on
+			// return repo still no created time
+			// mock for rollback and commit
+
+			if test.status == true {
+				mockRedis.On("Set").Return(&redis.StatusCmd{}).Once()
+			}
 
 			data, err := service.Create(test.ctx, test.post)
 			assert.Equal(t, test.expectedData, data)
@@ -76,6 +84,10 @@ func TestServiceCreate(t *testing.T) {
 
 			mockDB.AssertExpectations(t)
 			mockRepo.AssertExpectations(t)
+
+			if test.status == true {
+				mockRedis.AssertExpectations(t)
+			}
 		})
 	}
 }
