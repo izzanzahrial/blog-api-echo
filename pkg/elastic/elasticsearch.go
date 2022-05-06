@@ -389,7 +389,7 @@ const searchRecet = `"query": {
 					"size": %d,
 					"sort": [
 							{"created_at": {"order": "desc"}}
-					}`
+					]`
 
 const searchMatch = `"query": {
 							"from": %d,

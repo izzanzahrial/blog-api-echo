@@ -132,6 +132,10 @@ func (ps *service) Create(ctx context.Context, post PostData) (repository.PostDa
 		return repository.PostData{}, fmt.Errorf("failed to commit transaction: %v because %w", createdPost, err)
 	}
 
+	if err = ps.Es.Insert(ctx, createdPost); err != nil {
+		return repository.PostData{}, fmt.Errorf("failed to insert data: %v to elasticsearch because %w", createdPost, err)
+	}
+
 	ttl := time.Duration(3600) * time.Second
 	strID := strconv.Itoa(int(createdPost.ID))
 
@@ -164,12 +168,16 @@ func (ps *service) Update(ctx context.Context, post repository.PostData) error {
 		return err
 	}
 
-	if err := ps.Repository.Update(ctx, tx, foundPost); err != nil {
+	if err := ps.Repository.Update(ctx, tx, post); err != nil {
 		return err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transcation: %v because %w", foundPost, err)
+		return fmt.Errorf("failed to commit transcation: %v because %w", post, err)
+	}
+
+	if err = ps.Es.Update(ctx, post); err != nil {
+		return fmt.Errorf("failed to update data: %v from elasticsearch because %w", post, err)
 	}
 
 	ttl := time.Duration(3600) * time.Second
@@ -209,6 +217,10 @@ func (ps *service) Delete(ctx context.Context, id int64) error {
 
 	strID := strconv.Itoa(int(id))
 
+	if err = ps.Es.Delete(ctx, strID); err != nil {
+		return fmt.Errorf("failed to delete data: %d from elasticsearch because %w", id, err)
+	}
+
 	str := strings.Builder{}
 	str.WriteString("post")
 	str.WriteString(strID)
@@ -234,13 +246,18 @@ func (ps *service) FindByID(ctx context.Context, id int64) (repository.PostData,
 		return post, nil
 	}
 
+	foundPost, err := ps.Es.FindByID(ctx, strID)
+	if err == nil {
+		return foundPost, nil
+	}
+
 	tx, err := ps.DB.Begin()
 	if err != nil {
 		return repository.PostData{}, fmt.Errorf("failed to begin transaction: %d because %w", id, err)
 	}
 	defer tx.Rollback()
 
-	foundPost, err := ps.Repository.FindByID(ctx, tx, id)
+	foundPost, err = ps.Repository.FindByID(ctx, tx, id)
 	if err != nil {
 		return repository.PostData{}, err
 	}
