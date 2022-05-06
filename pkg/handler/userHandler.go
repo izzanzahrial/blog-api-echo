@@ -1,41 +1,23 @@
-package user
+package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/izzanzahrial/blog-api-echo/domain/user"
 	"github.com/izzanzahrial/blog-api-echo/entity"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo"
 )
-
-var (
-	ErrFailedToDecodeBody = errors.New("decoder failed to decode the body request")
-)
-
-type UserHandler interface {
-	Create(c echo.Context) error
-	UpdateUser(c echo.Context) error
-	UpdatePassword(c echo.Context) error
-	Delete(c echo.Context) error
-	Login(c echo.Context) error
-}
 
 type userHandler struct {
-	UserService UserService
+	UserService user.UserService
 }
 
-func NewUserHandler(us UserService) UserHandler {
+func NewUserHandler(us user.UserService) UserHandler {
 	return &userHandler{
 		UserService: us,
 	}
-}
-
-type webResponse struct {
-	code   int
-	status string
-	data   interface{}
 }
 
 func (us *userHandler) Create(c echo.Context) error {
@@ -60,9 +42,9 @@ func (us *userHandler) Create(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusCreated,
-		status: "",
-		data:   userResponse,
+		Code:    http.StatusCreated,
+		Message: http.StatusText(http.StatusCreated),
+		Data:    userResponse,
 	}
 
 	return c.JSON(http.StatusCreated, webResponse)
@@ -90,9 +72,9 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusAccepted,
-		status: "",
-		data:   userResponse,
+		Code:    http.StatusAccepted,
+		Message: http.StatusText(http.StatusAccepted),
+		Data:    userResponse,
 	}
 
 	return c.JSON(http.StatusAccepted, webResponse)
@@ -123,9 +105,9 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 	}
 
 	webResponse := webResponse{
-		code:   http.StatusAccepted,
-		status: "",
-		data:   userResponse,
+		Code:    http.StatusAccepted,
+		Message: http.StatusText(http.StatusAccepted),
+		Data:    userResponse,
 	}
 
 	return c.JSON(http.StatusAccepted, webResponse)
@@ -158,8 +140,8 @@ func (us *userHandler) Delete(c echo.Context) error {
 
 	us.UserService.Delete(c.Request().Context(), user.ID, user.Password)
 	webResponse := webResponse{
-		code:   http.StatusOK,
-		status: "",
+		Code:    http.StatusOK,
+		Message: http.StatusText(http.StatusOK),
 	}
 
 	return c.JSON(http.StatusOK, webResponse)
@@ -191,9 +173,9 @@ func (us *userHandler) Login(c echo.Context) error {
 
 	// check this again
 	webResponse := webResponse{
-		code:   http.StatusFound,
-		status: "",
-		data:   []interface{}{userResponse, token},
+		Code:    http.StatusFound,
+		Message: http.StatusText(http.StatusFound),
+		Data:    []interface{}{userResponse, token},
 	}
 
 	return c.JSON(http.StatusOK, webResponse)

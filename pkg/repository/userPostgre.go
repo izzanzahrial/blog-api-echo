@@ -1,20 +1,20 @@
-package user
+package repository
 
 import (
 	"context"
 	"database/sql"
 
-	"github.com/izzanzahrial/blog-api-echo/entity"
+	user "github.com/izzanzahrial/blog-api-echo/pkg/user"
 )
 
-type postgreRepository struct {
+type userPostgre struct {
 }
 
-func NewPostgreRepository() UserRepository {
-	return &postgreRepository{}
+func NewUserPostgreRepository() UserRepository {
+	return &userPostgre{}
 }
 
-func (p *postgreRepository) Create(ctx context.Context, tx *sql.Tx, user entity.User) (entity.User, error) {
+func (p *userPostgre) Create(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error) {
 	SQL := "INSERT INTO user(name, pass) VALUES(?, ?)"
 	result, err := tx.ExecContext(ctx, SQL, user.Name, user.Password)
 	if err != nil {
@@ -31,7 +31,7 @@ func (p *postgreRepository) Create(ctx context.Context, tx *sql.Tx, user entity.
 	return user, nil
 }
 
-func (p *postgreRepository) UpdateUser(ctx context.Context, tx *sql.Tx, user entity.User) (entity.User, error) {
+func (p *userPostgre) UpdateUser(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error) {
 	SQL := "UPDATE user SET name = ? WHERE id = ?"
 	_, err := tx.ExecContext(ctx, SQL, user.Name, user.ID)
 	if err != nil {
@@ -41,7 +41,7 @@ func (p *postgreRepository) UpdateUser(ctx context.Context, tx *sql.Tx, user ent
 	return user, nil
 }
 
-func (p *postgreRepository) UpdatePassword(ctx context.Context, tx *sql.Tx, user entity.User) (entity.User, error) {
+func (p *userPostgre) UpdatePassword(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error) {
 	SQL := "UPDATE user SET password = ? WHERE id = ?"
 	_, err := tx.ExecContext(ctx, SQL, user.Password, user.ID)
 	if err != nil {
@@ -51,7 +51,7 @@ func (p *postgreRepository) UpdatePassword(ctx context.Context, tx *sql.Tx, user
 	return user, nil
 }
 
-func (p *postgreRepository) Delete(ctx context.Context, tx *sql.Tx, user entity.User) error {
+func (p *userPostgre) Delete(ctx context.Context, tx *sql.Tx, user user.User) error {
 	SQL := "DELETE FROM user WHERE id = ?"
 	_, err := tx.ExecContext(ctx, SQL, user.ID)
 	if err != nil {
@@ -61,15 +61,15 @@ func (p *postgreRepository) Delete(ctx context.Context, tx *sql.Tx, user entity.
 	return nil
 }
 
-func (p *postgreRepository) Login(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (entity.User, error) {
+func (p *userPostgre) Login(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (user.User, error) {
 	SQL := "SELECT name FROM user WHERE id = ? AND password = ?"
 	rows, err := tx.QueryContext(ctx, SQL, ID, pass)
 	if err != nil {
-		return entity.User{}, ErrUserNotFound
+		return user.User{}, ErrUserNotFound
 	}
 	defer rows.Close()
 
-	user := entity.User{}
+	user := user.User{}
 	if rows.Next() {
 		if err := rows.Scan(&user.Name); err != nil {
 			return user, ErrFailedToAssertUser
@@ -80,15 +80,15 @@ func (p *postgreRepository) Login(ctx context.Context, tx *sql.Tx, ID uint64, pa
 	}
 }
 
-func (p *postgreRepository) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (entity.User, error) {
+func (p *userPostgre) FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (user.User, error) {
 	SQL := "SELECT name FROM user WHERE id = ?"
 	rows, err := tx.QueryContext(ctx, SQL, ID)
 	if err != nil {
-		return entity.User{}, ErrUserNotFound
+		return user.User{}, ErrUserNotFound
 	}
 	defer rows.Close()
 
-	user := entity.User{}
+	user := user.User{}
 	if rows.Next() {
 		if err := rows.Scan(&user.Name); err != nil {
 			return user, ErrFailedToAssertUser

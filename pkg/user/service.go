@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/izzanzahrial/blog-api-echo/entity"
+	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,12 +30,12 @@ type UserService interface {
 }
 
 type userService struct {
-	UserRepository UserRepository
+	UserRepository repository.UserRepository
 	DB             *sql.DB
 	Validate       *validator.Validate
 }
 
-func NewUserService(ur UserRepository, db *sql.DB, val *validator.Validate) UserService {
+func NewUserService(ur repository.UserRepository, db *sql.DB, val *validator.Validate) UserService {
 	return &userService{
 		UserRepository: ur,
 		DB:             db,

@@ -8,48 +8,48 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockPostgre struct {
+type MockPostingPostgre struct {
 	mock.Mock
 }
 
-func (m *MockPostgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
+func (m *MockPostingPostgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
 	args := m.Called(ctx, tx, pd)
 	return args.Get(0).(PostData), args.Error(1)
 }
 
-func (m *MockPostgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
+func (m *MockPostingPostgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	args := m.Called(ctx, tx, pd)
 	return args.Error(0)
 }
 
-func (m *MockPostgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
+func (m *MockPostingPostgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	args := m.Called(ctx, tx, pd)
 	return args.Error(0)
 }
 
-func (m *MockPostgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
+func (m *MockPostingPostgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
 	args := m.Called(ctx, tx, id)
 	return args.Get(0).(PostData), args.Error(1)
 }
 
-func (m *MockPostgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
+func (m *MockPostingPostgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
 	args := m.Called(ctx, tx, query, from, size)
 	return args.Get(0).([]PostData), args.Error(1)
 }
 
-func (m *MockPostgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
+func (m *MockPostingPostgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
 	args := m.Called(ctx, tx, from, size)
 	return args.Get(0).([]PostData), args.Error(1)
 }
 
-type postgre struct {
+type postingPostgre struct {
 }
 
 func NewPostgre() Post {
-	return &postgre{}
+	return &postingPostgre{}
 }
 
-func (p *postgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
+func (p *postingPostgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData, error) {
 	SQL := "INSERT INTO post(title, short_desc, content) VALUES (?, ?, ?)"
 	result, err := tx.ExecContext(ctx, SQL, pd.Title, pd.ShortDesc, pd.Content, pd.CreatedAt)
 	if err != nil {
@@ -66,7 +66,7 @@ func (p *postgre) Create(ctx context.Context, tx *sql.Tx, pd PostData) (PostData
 	return pd, nil
 }
 
-func (p *postgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
+func (p *postingPostgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	SQL := "UPDATE post SET title = ?, short_desc = ?, content = ? WHERE id = ?"
 	_, err := tx.ExecContext(ctx, SQL, pd.Title, pd.ShortDesc, pd.Content, pd.ID)
 	if err != nil {
@@ -76,7 +76,7 @@ func (p *postgre) Update(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	return nil
 }
 
-func (p *postgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
+func (p *postingPostgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	SQL := "DELETE FROM post WHERE id = ?"
 	_, err := tx.ExecContext(ctx, SQL, pd.ID)
 	if err != nil {
@@ -86,7 +86,7 @@ func (p *postgre) Delete(ctx context.Context, tx *sql.Tx, pd PostData) error {
 	return nil
 }
 
-func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
+func (p *postingPostgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData, error) {
 	SQL := "SELECT title, short_desc, content, created_at FROM post WHERE id = ?"
 	rows, err := tx.QueryContext(ctx, SQL, id)
 	if err != nil {
@@ -105,7 +105,7 @@ func (p *postgre) FindByID(ctx context.Context, tx *sql.Tx, id int64) (PostData,
 	}
 }
 
-func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
+func (p *postingPostgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query string, from int, size int) ([]PostData, error) {
 	// full text search postgres https://blog.crunchydata.com/blog/postgres-full-text-search-a-search-engine-in-a-database
 	selectFrom := "SELECT id, title, short_desc, content, created_at FROM posts"
 	condition := "WHERE ts_title_content @@ to_tsquery('english', '?')"
@@ -129,7 +129,7 @@ func (p *postgre) FindByTitleContent(ctx context.Context, tx *sql.Tx, query stri
 	return result, nil
 }
 
-func (p *postgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
+func (p *postingPostgre) FindRecent(ctx context.Context, tx *sql.Tx, from int, size int) ([]PostData, error) {
 	SQL := "SELECT id, title, short_desc, created_at content FROM post LIMIT ? OFFSET ?"
 	rows, err := tx.QueryContext(ctx, SQL, size, from)
 	if err != nil {

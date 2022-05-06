@@ -14,7 +14,7 @@ import (
 )
 
 func TestServiceCreate(t *testing.T) {
-	mockRepo := new(repository.MockPostgre)
+	mockRepo := new(repository.MockPostingPostgre)
 	mockDB := new(MockDBtx)
 	mockRedis := new(redisDB.MockRedis)
 	mockElastic := new(elastic.MockElastic)
