@@ -34,7 +34,7 @@ type ElasticDB interface {
 	Delete(ctx context.Context, id string) error
 	FindByID(ctx context.Context, id string) (repository.PostData, error)
 	FindByTitleContent(ctx context.Context, query string, from int, size int) (*SearchResults, error)
-	// FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error)
+	FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error)
 }
 
 type MockElastic struct {
@@ -302,9 +302,69 @@ func (e *Elastic) FindByTitleContent(ctx context.Context, query string, from int
 }
 
 // TODO : implement find by recent elastic
-// func (e *Elastic) FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error) {
+func (e *Elastic) FindByRecent(ctx context.Context, from int, size int) (*SearchResults, error) {
+	var results SearchResults
 
-// }
+	res, err := e.Client.Search(
+		e.Client.Search.WithContext(ctx),
+		e.Client.Search.WithIndex(e.Index),
+		e.Client.Search.WithBody(e.BuildBody(from, size, "")),
+		e.Client.Search.WithTrackTotalHits(true),
+	)
+	if err != nil {
+		return &results, err
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		var e map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			return &results, err
+		}
+		return &results, fmt.Errorf("[%s] %s: %s", res.Status(), e["error"].(map[string]interface{})["type"], e["error"].(map[string]interface{})["reason"])
+	}
+
+	type envelopeResponse struct {
+		Took int
+		Hits struct {
+			Total struct {
+				Value int
+			}
+			Hits []struct {
+				ID     string          `json:"_id"`
+				Source json.RawMessage `json:"_source"`
+			}
+		}
+	}
+
+	var r envelopeResponse
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		return &results, err
+	}
+
+	results.Total = r.Hits.Total.Value
+
+	if len(r.Hits.Hits) < 1 {
+		results.Hits = []*Document{}
+		return &results, nil
+	}
+
+	for _, hit := range r.Hits.Hits {
+		var doc Document
+		doc.ID, err = strconv.Atoi(hit.ID)
+		if err != nil {
+			return &results, err
+		}
+
+		if err := json.Unmarshal(hit.Source, &doc); err != nil {
+			return &results, err
+		}
+
+		results.Hits = append(results.Hits, &doc)
+	}
+
+	return &results, nil
+}
 
 func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
 	var body strings.Builder
@@ -312,7 +372,7 @@ func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
 	body.WriteString("{\n")
 
 	if query == "" {
-		body.WriteString(searchAll)
+		body.WriteString(searchRecet)
 	} else {
 		body.WriteString(fmt.Sprintf(searchMatch, from, size, query))
 	}
@@ -322,12 +382,13 @@ func (e *Elastic) BuildBody(from int, size int, query string) io.Reader {
 	return strings.NewReader(body.String())
 }
 
-const searchAll = `"query": { 
+const searchRecet = `"query": { 
 							"match_all": {}
 					},
-					"size": 25,
-					"sort": {
-							"title": "asc"
+					"from": %d,
+					"size": %d,
+					"sort": [
+							{"created_at": {"order": "desc"}}
 					}`
 
 const searchMatch = `"query": {
@@ -337,6 +398,7 @@ const searchMatch = `"query": {
 										"query": %q,
 										"fields": [
 												"title^2",
+												"short_desc",
 												"content"
 										],
 										"type": "phrase"
