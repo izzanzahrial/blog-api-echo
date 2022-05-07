@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
-	user "github.com/izzanzahrial/blog-api-echo/pkg/user"
 )
 
 var (
@@ -31,10 +29,12 @@ type Post interface {
 }
 
 type UserRepository interface {
-	Create(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error)
-	UpdateUser(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error)
-	UpdatePassword(ctx context.Context, tx *sql.Tx, user user.User) (user.User, error)
-	Delete(ctx context.Context, tx *sql.Tx, user user.User) error
-	Login(ctx context.Context, tx *sql.Tx, ID uint64, pass string) (user.User, error)
-	FindByID(ctx context.Context, tx *sql.Tx, ID uint64) (user.User, error)
+	Create(ctx context.Context, tx *sql.Tx, u User) (User, error)
+	UpdateUser(ctx context.Context, tx *sql.Tx, u User) (User, error)
+	UpdatePassword(ctx context.Context, tx *sql.Tx, u User) (User, error)
+	Delete(ctx context.Context, tx *sql.Tx, u User) error
+	LoginByEmail(ctx context.Context, tx *sql.Tx, email string, pass string) (User, error)
+	LoginByUsername(ctx context.Context, tx *sql.Tx, username string, pass string) (User, error)
+	FindByEmail(ctx context.Context, tx *sql.Tx, email string) (User, error)
+	FindByUsername(ctx context.Context, tx *sql.Tx, username string) (User, error)
 }

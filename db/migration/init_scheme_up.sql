@@ -29,9 +29,14 @@ CREATE INDEX idx_post_title ON posts(title);
 
 CREATE TABLE users (
     user_id serial PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE,
     name VARCHAR (255) NOT NULL,
     password VARCHAR (255) NOT NULL
 );
+
+CREATE UNIQUE INDEX idx_users_lower_email ON users(LOWER(email));
+CREATE UNIQUE INDEX idx_users_username ON users(LOWER(username));
 
 CREATE INDEX idx_user ON users(user_id, password);
 

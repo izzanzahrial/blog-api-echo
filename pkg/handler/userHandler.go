@@ -5,9 +5,8 @@ import (
 	"strconv"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/izzanzahrial/blog-api-echo/domain/user"
-	"github.com/izzanzahrial/blog-api-echo/entity"
-	"github.com/labstack/echo"
+	"github.com/izzanzahrial/blog-api-echo/pkg/user"
+	"github.com/labstack/echo/v4"
 )
 
 type userHandler struct {
@@ -29,7 +28,7 @@ func (us *userHandler) Create(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	user := entity.User{}
+	user := user.User{}
 	user.Name = c.FormValue("name")
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
@@ -62,7 +61,7 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 	claims := userClaims.Claims.(*JWTClaims)
 	id := claims.UserID
 
-	user := entity.User{}
+	user := user.User{}
 	user.ID = id
 	user.Name = c.FormValue("name")
 
@@ -92,7 +91,7 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 	claims := userClaims.Claims.(*JWTClaims)
 	id := claims.UserID
 
-	user := entity.User{}
+	user := user.User{}
 	user.ID = id
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
@@ -125,17 +124,18 @@ func (us *userHandler) Delete(c echo.Context) error {
 	claims := userClaims.Claims.(*JWTClaims)
 	idClaims := claims.UserID
 
-	id := c.FormValue("id")
-	id2, err := strconv.ParseUint(id, 10, 64)
+	strID := c.FormValue("id")
+	id, err := strconv.Atoi(strID)
+	newid := int64(id)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
-	if idClaims != id2 {
+	if idClaims != id {
 		return echo.ErrBadRequest
 	}
 
-	user := entity.User{}
-	user.ID = id2
+	user := user.User{}
+	user.ID = newid
 	user.Password = c.FormValue("password")
 
 	us.UserService.Delete(c.Request().Context(), user.ID, user.Password)
@@ -156,14 +156,15 @@ func (us *userHandler) Login(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	id := c.FormValue("id")
-	parseID, err := strconv.ParseUint(id, 10, 64)
+	strID := c.FormValue("id")
+	id, err := strconv.Atoi(strID)
+	newid := int64(id)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
 
-	user := entity.User{}
-	user.ID = parseID
+	user := user.User{}
+	user.ID = newid
 	user.Password = c.FormValue("password")
 
 	userResponse, token, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)

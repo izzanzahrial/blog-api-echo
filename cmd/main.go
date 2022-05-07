@@ -4,13 +4,13 @@ import (
 	"os"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/izzanzahrial/blog-api-echo/domain/post"
-	"github.com/izzanzahrial/blog-api-echo/domain/user"
 	"github.com/izzanzahrial/blog-api-echo/pkg/elastic"
 	"github.com/izzanzahrial/blog-api-echo/pkg/handler"
+	"github.com/izzanzahrial/blog-api-echo/pkg/postgre"
 	"github.com/izzanzahrial/blog-api-echo/pkg/posting"
 	redisDB "github.com/izzanzahrial/blog-api-echo/pkg/redis"
 	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
+	"github.com/izzanzahrial/blog-api-echo/pkg/user"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
@@ -27,7 +27,7 @@ var (
 
 func main() {
 	validator := validator.New()
-	postgreDB, _ := post.NewPostgreDatabase()
+	postgreDB, _ := postgre.NewPostgreDatabase()
 	redis := redisDB.NewRedis(redisHost, redisPass)
 	es := elastic.NewElastic(esUsername, esPassword, esAddresses)
 
@@ -35,9 +35,9 @@ func main() {
 	postService := posting.NewService(postRepository, postgreDB, validator, redis, es)
 	postHandler := handler.NewPostHandler(postService)
 
-	userRepository := user.NewPostgreRepository()
+	userRepository := repository.NewUserPostgreRepository()
 	userService := user.NewUserService(userRepository, postgreDB, validator)
-	userHandler := user.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService)
 
 	jwtConfig := middleware.JWTConfig{
 		Claims:        &user.JWTClaims{},
