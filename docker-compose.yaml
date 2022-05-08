@@ -3,9 +3,11 @@ services:
   postgres:
     image: postgres:14.2-alpine
     environment:
-      - POSTGRES_USER=izzanzahrial
-      - POSTGRES_PASSWORD=izzanzahrial
-      - POSTGRES_DB=pgdocker
+      - POSTGRES_USER=${PGUSER}
+      - POSTGRES_PASSWORD=${PGPASSWORD}
+      - POSTGRES_DB=${PGDATABASE}
+    ports:
+      - ${PGPORT}
   redis:
     image: redis:6.2-alpine
     # for running with the same redis config

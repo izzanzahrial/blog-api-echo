@@ -18,11 +18,14 @@ import (
 )
 
 var (
-	redisHost   = os.Getenv("redisHost")
-	redisPass   = os.Getenv("redisPass")
-	esAddresses = os.Getenv("esAddresses")
-	esUsername  = os.Getenv("esUsername")
-	esPassword  = os.Getenv("esPassword")
+	redisHost     = os.Getenv("redisHost")
+	redisPass     = os.Getenv("redisPass")
+	esAddresses   = os.Getenv("esAddresses")
+	esUsername    = os.Getenv("esUsername")
+	esPassword    = os.Getenv("esPassword")
+	jwtSignMethod = os.Getenv("jwtSignMethod")
+	jwtSignKey    = os.Getenv("jwtSignKey")
+	echoAddress   = os.Getenv("echoAddress")
 )
 
 func main() {
@@ -41,8 +44,8 @@ func main() {
 
 	jwtConfig := middleware.JWTConfig{
 		Claims:        &user.JWTClaims{},
-		SigningMethod: "HS512",
-		SigningKey:    []byte("izzan"),
+		SigningMethod: jwtSignMethod,
+		SigningKey:    []byte(jwtSignKey),
 	}
 
 	e := echo.New()
@@ -63,5 +66,5 @@ func main() {
 	u.POST("/login", userHandler.Login)
 	u.PUT("/password", userHandler.UpdatePassword, middleware.JWTWithConfig(jwtConfig))
 
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(echoAddress))
 }

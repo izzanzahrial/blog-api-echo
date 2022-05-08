@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/mail"
+	"os"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -21,11 +23,11 @@ var (
 )
 
 type UserService interface {
-	Create(ctx context.Context, u User) (User, error)
-	UpdateUser(ctx context.Context, u User) (User, error)
-	UpdatePassword(ctx context.Context, u User) (User, error)
-	Delete(ctx context.Context, id int64, pass string) error
-	Login(ctx context.Context, id int64, pass string) (User, string, error)
+	Create(ctx context.Context, u User) (repository.User, error)
+	UpdateUser(ctx context.Context, u repository.User) (repository.User, error)
+	UpdatePassword(ctx context.Context, u repository.User, newPass string) (repository.User, error)
+	Delete(ctx context.Context, u repository.User) error
+	Login(ctx context.Context, emailOrUname string, pass string) (repository.User, string, error)
 }
 
 type userService struct {
@@ -42,98 +44,116 @@ func NewUserService(ur repository.UserRepository, db *sql.DB, val *validator.Val
 	}
 }
 
-func (us *userService) Create(ctx context.Context, u User) (User, error) {
+func (us *userService) Create(ctx context.Context, u User) (repository.User, error) {
 	err := us.Validate.Struct(u)
 	if err != nil {
-		return User{}, ErrUserIsntValidate
+		return repository.User{}, ErrUserIsntValidate
 	}
 
 	tx, err := us.DB.Begin()
 	if err != nil {
-		return User{}, ErrFailedToBeginTransaction
+		return repository.User{}, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	repoUser, err = us.UserRepository.Create(ctx, tx, repository.User(u))
+	user := repository.User{
+		Email:    u.Email,
+		Username: u.Username,
+		Name:     u.Name,
+		Password: u.Password,
+	}
+
+	user, err = us.UserRepository.Create(ctx, tx, user)
 	if err != nil {
-		return User{}, err
+		return repository.User{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return User{}, ErrFailedToCommitTransaction
+		return repository.User{}, ErrFailedToCommitTransaction
 	}
 
-	return repoUser, nil
+	return user, nil
 }
 
-func (us *userService) UpdateUser(ctx context.Context, u User) (User, error) {
+func (us *userService) UpdateUser(ctx context.Context, u repository.User) (repository.User, error) {
 	if err := us.Validate.Struct(u); err != nil {
-		return User{}, ErrUserIsntValidate
+		return repository.User{}, ErrUserIsntValidate
 	}
 
 	tx, err := us.DB.Begin()
 	if err != nil {
-		return User{}, ErrFailedToBeginTransaction
+		return repository.User{}, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	oldUser, err := us.UserRepository.FindByID(ctx, tx, u.ID)
+	user, err := us.UserRepository.FindByEmail(ctx, tx, u.Email)
 	if err != nil {
-		return User{}, err
+		return repository.User{}, err
 	}
 
-	oldUser.Name = u.Name
+	user.Email = u.Email
+	user.Username = u.Username
+	user.Name = u.Name
 
-	newUser, err = us.UserRepository.UpdateUser(ctx, tx, oldUser)
+	newUser, err := us.UserRepository.UpdateUser(ctx, tx, user)
 	if err != nil {
-		return User{}, err
+		return repository.User{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return User{}, ErrFailedToCommitTransaction
+		return repository.User{}, ErrFailedToCommitTransaction
 	}
 
 	return newUser, nil
 }
 
-func (us *userService) UpdatePassword(ctx context.Context, u User) (User, error) {
+func (us *userService) UpdatePassword(ctx context.Context, u repository.User, newPass string) (repository.User, error) {
 	if err := us.Validate.Struct(u); err != nil {
-		return User{}, ErrUserIsntValidate
+		return repository.User{}, ErrUserIsntValidate
 	}
 
 	tx, err := us.DB.Begin()
 	if err != nil {
-		return User{}, ErrFailedToBeginTransaction
+		return repository.User{}, ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	oldUser, err := us.UserRepository.Login(ctx, tx, u.ID, u.Password)
+	user, err := us.UserRepository.FindByEmail(ctx, tx, u.Email)
 	if err != nil {
-		return User{}, err
+		return repository.User{}, err
 	}
 
-	oldUser.Password = u.Password
+	if ok := CheckPasswordHash(u.Password, user.Password); !ok {
+		return repository.User{}, bcrypt.ErrMismatchedHashAndPassword
+	}
 
-	newUser, err = us.UserRepository.UpdatePassword(ctx, tx, oldUser)
+	hashPass, err := hashPassword(newPass)
 	if err != nil {
-		return User{}, err
+		return repository.User{}, bcrypt.ErrHashTooShort
+	}
+
+	user.Password = hashPass
+
+	newUser, err := us.UserRepository.UpdatePassword(ctx, tx, user)
+	if err != nil {
+		return repository.User{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return User{}, ErrFailedToCommitTransaction
+		return repository.User{}, ErrFailedToCommitTransaction
 	}
 
 	return newUser, nil
 }
 
-func (us *userService) Delete(ctx context.Context, id int64, pass string) error {
+func (us *userService) Delete(ctx context.Context, u repository.User) error {
 	tx, err := us.DB.Begin()
 	if err != nil {
 		return ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	user, err := us.UserRepository.Login(ctx, tx, id, pass)
+	user, err := us.UserRepository.LoginByEmail(ctx, tx, u.Email, u.Password)
 	if err != nil {
 		return err
 	}
@@ -149,50 +169,62 @@ func (us *userService) Delete(ctx context.Context, id int64, pass string) error 
 	return nil
 }
 
-func (us *userService) Login(ctx context.Context, id int64, pass string) (User, string, error) {
+func (us *userService) Login(ctx context.Context, emailOrUname string, pass string) (repository.User, string, error) {
 	tx, err := us.DB.Begin()
 	if err != nil {
-		return User{}, "", ErrFailedToBeginTransaction
+		return repository.User{}, "", ErrFailedToBeginTransaction
 	}
 	defer tx.Rollback()
 
-	hashedPassword, err := hashPassword(pass)
+	hashPass, err := hashPassword(pass)
 	if err != nil {
-		return User{}, "", err
+		return repository.User{}, "", err
 	}
 
-	user, err := us.UserRepository.Login(ctx, tx, id, hashedPassword)
-	if err != nil {
-		return User{}, "", err
+	var user repository.User
+	if ok := validateEmail(emailOrUname); !ok {
+		user, err = us.UserRepository.LoginByUsername(ctx, tx, emailOrUname, hashPass)
+		if err != nil {
+			return repository.User{}, "", err
+		}
+	} else {
+		user, err = us.UserRepository.LoginByEmail(ctx, tx, emailOrUname, hashPass)
+		if err != nil {
+			return repository.User{}, "", err
+		}
 	}
 
-	if ok := CheckPasswordHash(hashedPassword, user.Password); !ok {
-		return User{}, "", ErrUnauthorizedUser
+	if ok := CheckPasswordHash(hashPass, user.Password); !ok {
+		return repository.User{}, "", ErrUnauthorizedUser
 	}
 
 	if err := tx.Commit(); err != nil {
-		return User{}, "", ErrFailedToCommitTransaction
+		return repository.User{}, "", ErrFailedToCommitTransaction
 	}
 
-	id64 := uint64(user.ID)
-
-	token, err := createJWTToken(id64, false)
+	token, err := createJWTToken(false, user.ID, user.Email, user.Username, user.Name)
 	if err != nil {
-		return User{}, token, err
+		return repository.User{}, token, err
 	}
 
 	return user, token, nil
 }
 
 type JWTClaims struct {
-	UserID uint64
-	Admin  bool
+	ID       int64  `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	Admin    bool   `json:"admin"`
 	jwt.StandardClaims
 }
 
-func createJWTToken(userID uint64, admin bool) (string, error) {
+func createJWTToken(admin bool, id int64, email, username, name string) (string, error) {
 	claims := JWTClaims{
-		userID,
+		id,
+		email,
+		username,
+		name,
 		admin,
 		jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour * 3600).Unix(),
@@ -201,7 +233,7 @@ func createJWTToken(userID uint64, admin bool) (string, error) {
 
 	rawToken := jwt.NewWithClaims(jwt.SigningMethodES512, claims)
 
-	token, err := rawToken.SignedString([]byte("izzan"))
+	token, err := rawToken.SignedString([]byte(os.Getenv("tokenSign")))
 	if err != nil {
 		return "", err
 	}
@@ -221,4 +253,12 @@ func hashPassword(password string) (string, error) {
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+func validateEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+	return true
 }

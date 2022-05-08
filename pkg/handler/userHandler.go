@@ -1,10 +1,11 @@
 package handler
 
 import (
+	"context"
 	"net/http"
-	"strconv"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/izzanzahrial/blog-api-echo/pkg/repository"
 	"github.com/izzanzahrial/blog-api-echo/pkg/user"
 	"github.com/labstack/echo/v4"
 )
@@ -28,7 +29,7 @@ func (us *userHandler) Create(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	user := user.User{}
+	var user user.User
 	user.Name = c.FormValue("name")
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
@@ -58,14 +59,20 @@ func (us *userHandler) UpdateUser(c echo.Context) error {
 	// }
 
 	userClaims := c.Get("user").(*jwt.Token)
-	claims := userClaims.Claims.(*JWTClaims)
-	id := claims.UserID
+	claims := userClaims.Claims.(*user.JWTClaims)
 
-	user := user.User{}
-	user.ID = id
+	user := repository.User{
+		ID:       claims.ID,
+		Email:    claims.Email,
+		Username: claims.Username,
+		Name:     claims.Name,
+	}
+
+	user.Email = c.FormValue("email")
+	user.Username = c.FormValue("username")
 	user.Name = c.FormValue("name")
 
-	userResponse, err := us.UserService.UpdateUser(c.Request().Context(), user)
+	userResponse, err := us.UserService.UpdateUser(context.Background(), user)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -88,17 +95,22 @@ func (us *userHandler) UpdatePassword(c echo.Context) error {
 	// }
 
 	userClaims := c.Get("user").(*jwt.Token)
-	claims := userClaims.Claims.(*JWTClaims)
-	id := claims.UserID
+	claims := userClaims.Claims.(*user.JWTClaims)
 
-	user := user.User{}
-	user.ID = id
+	user := repository.User{
+		ID:       claims.ID,
+		Email:    claims.Email,
+		Username: claims.Username,
+		Name:     claims.Name,
+	}
 	user.Password = c.FormValue("password")
 	if password2 := c.FormValue("password2"); password2 != user.Password {
 		return echo.ErrBadRequest
 	}
 
-	userResponse, err := us.UserService.UpdatePassword(c.Request().Context(), user)
+	newPass := c.FormValue("new_pass")
+
+	userResponse, err := us.UserService.UpdatePassword(context.Background(), user, newPass)
 	if err != nil {
 		return echo.ErrInternalServerError
 	}
@@ -121,24 +133,23 @@ func (us *userHandler) Delete(c echo.Context) error {
 	// }
 
 	userClaims := c.Get("user").(*jwt.Token)
-	claims := userClaims.Claims.(*JWTClaims)
-	idClaims := claims.UserID
-
-	strID := c.FormValue("id")
-	id, err := strconv.Atoi(strID)
-	newid := int64(id)
-	if err != nil {
-		return echo.ErrInternalServerError
+	claims := userClaims.Claims.(*user.JWTClaims)
+	user := repository.User{
+		ID:       claims.ID,
+		Email:    claims.Email,
+		Username: claims.Username,
+		Name:     claims.Name,
 	}
-	if idClaims != id {
+
+	user.Password = c.FormValue("password")
+	if password2 := c.FormValue("password2"); password2 != user.Password {
 		return echo.ErrBadRequest
 	}
 
-	user := user.User{}
-	user.ID = newid
-	user.Password = c.FormValue("password")
+	if err := us.UserService.Delete(c.Request().Context(), user); err != nil {
+		return echo.ErrInternalServerError
+	}
 
-	us.UserService.Delete(c.Request().Context(), user.ID, user.Password)
 	webResponse := webResponse{
 		Code:    http.StatusOK,
 		Message: http.StatusText(http.StatusOK),
@@ -156,18 +167,10 @@ func (us *userHandler) Login(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusBadRequest)
 	// }
 
-	strID := c.FormValue("id")
-	id, err := strconv.Atoi(strID)
-	newid := int64(id)
-	if err != nil {
-		return echo.ErrInternalServerError
-	}
+	emailOrUname := c.FormValue("email_or_username")
+	password := c.FormValue("password")
 
-	user := user.User{}
-	user.ID = newid
-	user.Password = c.FormValue("password")
-
-	userResponse, token, err := us.UserService.Login(c.Request().Context(), user.ID, user.Password)
+	userResponse, token, err := us.UserService.Login(context.Background(), emailOrUname, password)
 	if err != nil {
 		return echo.ErrUnauthorized
 	}
